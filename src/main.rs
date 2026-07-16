@@ -81,7 +81,11 @@ async fn run_app(config: config::Config) -> Result<()> {
     tracing::info!("murmer starting up");
 
     // Initialize Ollama client
-    let ollama = llm::client::OllamaClient::new(&config.llm.endpoint);
+    let ollama = llm::client::LlmClient::new(
+        &config.llm.endpoint,
+        config.llm.api_key.as_deref(),
+        config.llm.protocol.as_deref(),
+    );
     match ollama.health_check().await {
         Ok(true) => tracing::info!("ollama connected at {}", config.llm.endpoint),
         Ok(false) => tracing::warn!("ollama returned non-success status"),
@@ -182,7 +186,7 @@ async fn run_app(config: config::Config) -> Result<()> {
 /// Record audio, transcribe, optionally clean up with LLM, and paste result.
 async fn process_recording(
     config: &config::Config,
-    ollama: &llm::client::OllamaClient,
+    ollama: &llm::client::LlmClient,
     paste_method: &input::paste::PasteMethod,
     is_command: bool,
     stop_signal: Arc<AtomicBool>,
@@ -260,7 +264,11 @@ async fn check_system(config: &config::Config) -> Result<()> {
     println!("==================");
 
     // Check Ollama
-    let ollama = llm::client::OllamaClient::new(&config.llm.endpoint);
+    let ollama = llm::client::LlmClient::new(
+        &config.llm.endpoint,
+        config.llm.api_key.as_deref(),
+        config.llm.protocol.as_deref(),
+    );
     match ollama.health_check().await {
         Ok(true) => println!("[OK] Ollama reachable at {}", config.llm.endpoint),
         Ok(false) => println!(

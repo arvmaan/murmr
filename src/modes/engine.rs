@@ -2,7 +2,7 @@ use super::context;
 use super::extractor;
 use super::registry::{ModeRegistry, TriggerMatch};
 use crate::config::Config;
-use crate::llm::client::OllamaClient;
+use crate::llm::client::LlmClient;
 use anyhow::Result;
 
 /// Output routing for a mode's result.
@@ -44,7 +44,7 @@ pub struct ModeResult {
 pub async fn process_dictation(
     text: &str,
     config: &Config,
-    client: &OllamaClient,
+    client: &LlmClient,
     last_output: Option<&str>,
 ) -> Result<Option<ModeResult>> {
     let registry = ModeRegistry::new(&config.modes);
@@ -88,7 +88,7 @@ async fn execute_mode(
     template: &str,
     _output: Option<&str>,
     config: &Config,
-    client: &OllamaClient,
+    client: &LlmClient,
     last_output: Option<&str>,
 ) -> Result<String> {
     // Extract slots from the remaining text

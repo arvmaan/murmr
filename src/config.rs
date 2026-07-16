@@ -45,6 +45,12 @@ pub struct LlmConfig {
     pub command_model: String,
     #[serde(default)]
     pub cleanup_prompt: Option<CleanupPrompt>,
+    /// API key for OpenAI-compatible services (env: MURMER_API_KEY)
+    #[serde(default)]
+    pub api_key: Option<String>,
+    /// Protocol: "ollama" or "openai". Auto-detected if not set.
+    #[serde(default)]
+    pub protocol: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -113,6 +119,8 @@ impl Default for LlmConfig {
             cleanup_model: default_cleanup_model(),
             command_model: default_command_model(),
             cleanup_prompt: None,
+            api_key: None,
+            protocol: None,
         }
     }
 }

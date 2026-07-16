@@ -1,11 +1,11 @@
-use crate::llm::client::{Message, OllamaClient};
+use crate::llm::client::{LlmClient, Message};
 use anyhow::Result;
 
 /// Extract structured slots from casual speech using the LLM.
 /// Given a template with named placeholders and raw dictation,
 /// asks the LLM to return JSON with slot values.
 pub async fn extract_slots(
-    client: &OllamaClient,
+    client: &LlmClient,
     model: &str,
     template: &str,
     raw_text: &str,
