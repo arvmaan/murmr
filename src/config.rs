@@ -139,9 +139,7 @@ pub fn config_path() -> PathBuf {
 }
 
 pub fn load(path: Option<&str>) -> Result<Config> {
-    let config_file = path
-        .map(PathBuf::from)
-        .unwrap_or_else(config_path);
+    let config_file = path.map(PathBuf::from).unwrap_or_else(config_path);
 
     if config_file.exists() {
         let content = std::fs::read_to_string(&config_file)
