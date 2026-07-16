@@ -72,7 +72,7 @@ impl SystemTray {
     ///
     /// On Linux, this uses the StatusNotifierItem D-Bus protocol (via ksni)
     /// to display a tray icon. Should be called from a dedicated thread.
-    #[cfg(feature = "tray")]
+    #[cfg(all(feature = "tray", target_os = "linux"))]
     pub fn run(&self) -> Result<()> {
         use ksni::TrayService;
 
@@ -90,7 +90,7 @@ impl SystemTray {
     }
 
     /// Placeholder when tray feature is disabled.
-    #[cfg(not(feature = "tray"))]
+    #[cfg(not(all(feature = "tray", target_os = "linux")))]
     pub fn run(&self) -> Result<()> {
         tracing::info!("system tray disabled (compiled without 'tray' feature)");
         loop {
@@ -99,12 +99,12 @@ impl SystemTray {
     }
 }
 
-#[cfg(feature = "tray")]
+#[cfg(all(feature = "tray", target_os = "linux"))]
 struct MurmerTray {
     state: Arc<AtomicU8>,
 }
 
-#[cfg(feature = "tray")]
+#[cfg(all(feature = "tray", target_os = "linux"))]
 impl ksni::Tray for MurmerTray {
     fn id(&self) -> String {
         "murmer".to_string()
