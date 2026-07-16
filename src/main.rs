@@ -138,6 +138,7 @@ async fn run_app(config: config::Config) -> Result<()> {
     // Event loop
     let mut state = AppState::Idle;
     let stop_signal: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let mut recording_handle: Option<std::thread::JoinHandle<Vec<f32>>> = None;
 
     loop {
         tokio::select! {
@@ -148,28 +149,58 @@ async fn run_app(config: config::Config) -> Result<()> {
                         state = AppState::Recording { is_command: false };
                         tray_handle.set_state(tray::TrayState::Recording);
                         stop_signal.store(false, Ordering::Relaxed);
+
+                        // Start recording immediately in a background thread
+                        let stop = stop_signal.clone();
+                        recording_handle = Some(std::thread::spawn(move || {
+                            let capture = audio::capture::AudioCapture::new().unwrap();
+                            capture.record_until_stopped(stop).unwrap_or_default()
+                        }));
                     }
                     (AppState::Idle, input::hotkey::HotkeyEvent::CommandPressed) => {
                         tracing::info!("recording started (command mode)");
                         state = AppState::Recording { is_command: true };
                         tray_handle.set_state(tray::TrayState::Recording);
                         stop_signal.store(false, Ordering::Relaxed);
+
+                        // Start recording immediately
+                        let stop = stop_signal.clone();
+                        recording_handle = Some(std::thread::spawn(move || {
+                            let capture = audio::capture::AudioCapture::new().unwrap();
+                            capture.record_until_stopped(stop).unwrap_or_default()
+                        }));
                     }
                     (AppState::Recording { is_command }, input::hotkey::HotkeyEvent::DictateReleased | input::hotkey::HotkeyEvent::CommandReleased) => {
                         let is_command_mode = *is_command;
                         tracing::info!("recording stopped, processing...");
                         tray_handle.set_state(tray::TrayState::Processing);
+
+                        // Signal recording to stop
                         stop_signal.store(true, Ordering::Relaxed);
+
+                        // Collect recorded samples from the thread
+                        let samples = match recording_handle.take() {
+                            Some(handle) => handle.join().unwrap_or_default(),
+                            None => Vec::new(),
+                        };
+
+                        if samples.is_empty() {
+                            tracing::warn!("no audio recorded");
+                            tray_handle.set_state(tray::TrayState::Idle);
+                            state = AppState::Idle;
+                            continue;
+                        }
+
+                        tracing::info!("recorded {} samples ({:.1}s)", samples.len(), samples.len() as f64 / 16000.0);
 
                         // Process in background
                         let config_clone = config.clone();
                         let ollama_clone = ollama.clone();
                         let paste_clone = paste_method.clone();
                         let tray_clone = tray_handle_clone.clone();
-                        let stop_clone = stop_signal.clone();
 
                         tokio::spawn(async move {
-                            match process_recording(&config_clone, &ollama_clone, &paste_clone, is_command_mode, stop_clone).await {
+                            match process_samples(&config_clone, &ollama_clone, &paste_clone, is_command_mode, samples).await {
                                 Ok(()) => tracing::debug!("processing complete"),
                                 Err(e) => tracing::error!("processing failed: {}", e),
                             }
@@ -191,28 +222,14 @@ async fn run_app(config: config::Config) -> Result<()> {
     Ok(())
 }
 
-/// Record audio, transcribe, optionally clean up with LLM, and paste result.
-async fn process_recording(
+/// Process recorded samples: VAD filter, transcribe, LLM cleanup/mode, paste.
+async fn process_samples(
     config: &config::Config,
     ollama: &llm::client::LlmClient,
     paste_method: &input::paste::PasteMethod,
     is_command: bool,
-    stop_signal: Arc<AtomicBool>,
+    samples: Vec<f32>,
 ) -> Result<()> {
-    // Record audio
-    let capture = audio::capture::AudioCapture::new()?;
-    let samples = capture.record_until_stopped(stop_signal)?;
-
-    if samples.is_empty() {
-        tracing::warn!("no audio recorded");
-        return Ok(());
-    }
-    tracing::debug!(
-        "recorded {} samples ({:.1}s)",
-        samples.len(),
-        samples.len() as f64 / 16000.0
-    );
-
     // Filter with VAD
     let vad_model_path = dirs::data_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))

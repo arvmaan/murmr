@@ -147,11 +147,11 @@ impl Default for DictionaryLearningConfig {
 }
 
 fn default_dictate_hotkey() -> String {
-    "Super+Shift+D".to_string()
+    "Super+Shift+K".to_string()
 }
 
 fn default_command_hotkey() -> String {
-    "Super+Shift+C".to_string()
+    "Super+Shift+L".to_string()
 }
 
 fn default_model_path() -> String {
