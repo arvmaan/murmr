@@ -101,10 +101,10 @@ impl AudioCapture {
         recording_flag.store(false, Ordering::Relaxed);
         drop(stream);
 
-        let raw_samples = Arc::try_unwrap(samples)
-            .unwrap_or_else(|arc| arc.lock().unwrap_or_else(|e| e.into_inner()).clone())
-            .into_inner()
-            .unwrap_or_default();
+        let raw_samples = match Arc::try_unwrap(samples) {
+            Ok(mutex) => mutex.into_inner().unwrap_or_default(),
+            Err(arc) => arc.lock().unwrap_or_else(|e| e.into_inner()).clone(),
+        };
 
         // Resample to 16kHz if needed
         if device_sample_rate != WHISPER_SAMPLE_RATE {
