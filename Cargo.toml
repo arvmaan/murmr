@@ -1,0 +1,60 @@
+[package]
+name = "murmer"
+version = "0.1.0"
+edition = "2021"
+authors = ["Arvind Maan"]
+description = "Local voice-to-text with LLM cleanup. No cloud, no Electron, just speech to clean text."
+license = "MIT"
+repository = "https://github.com/arvinmaa/murmer"
+keywords = ["voice", "dictation", "whisper", "local", "linux"]
+categories = ["multimedia::audio", "text-processing"]
+
+[dependencies]
+# Audio
+cpal = "0.15"
+
+# STT
+whisper-rs = "0.12"
+
+# VAD
+ort = { version = "2", features = ["load-dynamic"] }
+ndarray = "0.16"
+
+# LLM client
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Hotkeys
+rdev = "0.5"
+
+# Config
+toml = "0.8"
+dirs = "6"
+
+# System tray
+ksni = "0.2"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+[dev-dependencies]
+mockito = "1"
+tempfile = "3"
+tokio-test = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true

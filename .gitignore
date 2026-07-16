@@ -1,0 +1,25 @@
+# Rust build artifacts
+/target
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models (large files)
+*.bin
+*.gguf
+models/
+
+# Config with secrets
+config.local.toml
+
+# Debug
+*.log
