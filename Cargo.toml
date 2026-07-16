@@ -16,6 +16,7 @@ stt = ["dep:whisper-rs"]
 vad = ["dep:ort", "dep:ndarray"]
 hotkeys = ["dep:rdev"]
 tray = ["dep:ksni"]
+bedrock = ["dep:aws-sdk-bedrockruntime", "dep:aws-config"]
 integration = []
 
 [dependencies]
@@ -54,6 +55,10 @@ clap = { version = "4", features = ["derive"] }
 # Error handling
 anyhow = "1"
 thiserror = "2"
+
+# AWS Bedrock (feature-gated)
+aws-sdk-bedrockruntime = { version = "1", optional = true }
+aws-config = { version = "1", optional = true }
 
 # System tray (Linux only, feature-gated)
 [target.'cfg(target_os = "linux")'.dependencies]

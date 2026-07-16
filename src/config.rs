@@ -48,9 +48,12 @@ pub struct LlmConfig {
     /// API key for OpenAI-compatible services (env: MURMER_API_KEY)
     #[serde(default)]
     pub api_key: Option<String>,
-    /// Protocol: "ollama" or "openai". Auto-detected if not set.
+    /// Protocol: "ollama", "openai", "anthropic", or "bedrock". Auto-detected if not set.
     #[serde(default)]
     pub protocol: Option<String>,
+    /// AWS region for Bedrock (default: us-east-1)
+    #[serde(default)]
+    pub region: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -121,6 +124,7 @@ impl Default for LlmConfig {
             cleanup_prompt: None,
             api_key: None,
             protocol: None,
+            region: None,
         }
     }
 }

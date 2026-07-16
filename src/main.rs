@@ -81,8 +81,16 @@ async fn run_app(config: config::Config) -> Result<()> {
     tracing::info!("murmer starting up");
 
     // Initialize Ollama client
+    let endpoint = if config.llm.protocol.as_deref() == Some("bedrock") {
+        format!(
+            "bedrock:{}",
+            config.llm.region.as_deref().unwrap_or("us-east-1")
+        )
+    } else {
+        config.llm.endpoint.clone()
+    };
     let ollama = llm::client::LlmClient::new(
-        &config.llm.endpoint,
+        &endpoint,
         config.llm.api_key.as_deref(),
         config.llm.protocol.as_deref(),
     );
@@ -264,8 +272,16 @@ async fn check_system(config: &config::Config) -> Result<()> {
     println!("==================");
 
     // Check Ollama
+    let endpoint = if config.llm.protocol.as_deref() == Some("bedrock") {
+        format!(
+            "bedrock:{}",
+            config.llm.region.as_deref().unwrap_or("us-east-1")
+        )
+    } else {
+        config.llm.endpoint.clone()
+    };
     let ollama = llm::client::LlmClient::new(
-        &config.llm.endpoint,
+        &endpoint,
         config.llm.api_key.as_deref(),
         config.llm.protocol.as_deref(),
     );

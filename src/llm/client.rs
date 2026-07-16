@@ -27,6 +27,9 @@ pub enum Protocol {
     OpenAI,
     /// Anthropic Messages API (POST /v1/messages)
     Anthropic,
+    /// AWS Bedrock (uses AWS SDK with SigV4 signing)
+    /// Model IDs like: us.anthropic.claude-sonnet-4-20250514-v1:0
+    Bedrock,
 }
 
 impl Protocol {
@@ -50,6 +53,7 @@ impl Protocol {
             "ollama" => Self::Ollama,
             "openai" | "openai-compatible" | "groq" | "together" | "openrouter" => Self::OpenAI,
             "anthropic" | "claude" => Self::Anthropic,
+            "bedrock" | "aws" | "aws-bedrock" => Self::Bedrock,
             _ => Self::Ollama,
         }
     }
@@ -159,10 +163,26 @@ impl LlmClient {
 
     /// Check if the LLM service is reachable.
     pub async fn health_check(&self) -> Result<bool> {
+        if self.protocol == Protocol::Bedrock {
+            // Bedrock uses AWS SDK — we can't easily health-check without making
+            // a real inference call. Just verify credentials are loadable.
+            #[cfg(feature = "bedrock")]
+            {
+                let _config =
+                    aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+                return Ok(true);
+            }
+            #[cfg(not(feature = "bedrock"))]
+            {
+                anyhow::bail!("bedrock support not compiled in (enable the 'bedrock' feature)");
+            }
+        }
+
         let url = match self.protocol {
             Protocol::Ollama => format!("{}/api/tags", self.endpoint),
             Protocol::OpenAI => format!("{}/v1/models", self.endpoint),
             Protocol::Anthropic => format!("{}/v1/messages", self.endpoint),
+            Protocol::Bedrock => unreachable!(),
         };
 
         let mut req = match self.protocol {
@@ -199,6 +219,7 @@ impl LlmClient {
             Protocol::Ollama => self.chat_ollama(model, messages).await,
             Protocol::OpenAI => self.chat_openai(model, messages).await,
             Protocol::Anthropic => self.chat_anthropic(model, messages).await,
+            Protocol::Bedrock => self.chat_bedrock(model, messages).await,
         }
     }
 
@@ -330,6 +351,100 @@ impl LlmClient {
             .next()
             .map(|c| c.text)
             .ok_or_else(|| anyhow::anyhow!("Anthropic returned empty content array"))
+    }
+
+    #[cfg(feature = "bedrock")]
+    async fn chat_bedrock(&self, model: &str, messages: Vec<Message>) -> Result<String> {
+        use aws_sdk_bedrockruntime::types::{
+            ContentBlock, ConversationRole, Message as BedrockMessage, SystemContentBlock,
+        };
+        use aws_sdk_bedrockruntime::Client as BedrockClient;
+
+        let region = self
+            .endpoint
+            .strip_prefix("bedrock:")
+            .unwrap_or("us-east-1");
+
+        let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .region(aws_config::Region::new(region.to_string()))
+            .load()
+            .await;
+
+        let client = BedrockClient::new(&config);
+
+        let mut system_prompts: Vec<SystemContentBlock> = Vec::new();
+        let mut bedrock_messages: Vec<BedrockMessage> = Vec::new();
+
+        for msg in messages {
+            match msg.role.as_str() {
+                "system" => {
+                    system_prompts.push(SystemContentBlock::Text(msg.content));
+                }
+                "user" => {
+                    bedrock_messages.push(
+                        BedrockMessage::builder()
+                            .role(ConversationRole::User)
+                            .content(ContentBlock::Text(msg.content))
+                            .build()
+                            .map_err(|e| anyhow::anyhow!("failed to build message: {}", e))?,
+                    );
+                }
+                "assistant" => {
+                    bedrock_messages.push(
+                        BedrockMessage::builder()
+                            .role(ConversationRole::Assistant)
+                            .content(ContentBlock::Text(msg.content))
+                            .build()
+                            .map_err(|e| anyhow::anyhow!("failed to build message: {}", e))?,
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        let mut req = client
+            .converse()
+            .model_id(model)
+            .set_messages(Some(bedrock_messages));
+
+        if !system_prompts.is_empty() {
+            req = req.set_system(Some(system_prompts));
+        }
+
+        let response = req
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("Bedrock request failed: {}", e))?;
+
+        let output = response
+            .output()
+            .ok_or_else(|| anyhow::anyhow!("Bedrock returned no output"))?;
+
+        match output {
+            aws_sdk_bedrockruntime::types::ConverseOutput::Message(msg) => {
+                let text = msg
+                    .content()
+                    .iter()
+                    .filter_map(|block| {
+                        if let ContentBlock::Text(t) = block {
+                            Some(t.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("");
+                Ok(text)
+            }
+            _ => anyhow::bail!("unexpected Bedrock output type"),
+        }
+    }
+
+    #[cfg(not(feature = "bedrock"))]
+    async fn chat_bedrock(&self, _model: &str, _messages: Vec<Message>) -> Result<String> {
+        anyhow::bail!(
+            "Bedrock support not compiled in. Rebuild with: cargo build --features bedrock"
+        )
     }
 }
 
