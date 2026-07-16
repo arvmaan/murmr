@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Deserialize, Clone)]
@@ -12,6 +13,10 @@ pub struct Config {
     pub llm: LlmConfig,
     #[serde(default)]
     pub paste: PasteConfig,
+    #[serde(default)]
+    pub modes: Vec<ModeConfig>,
+    #[serde(default)]
+    pub dictionary: DictionaryConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -53,6 +58,36 @@ pub struct PasteConfig {
     pub method: String,
 }
 
+/// A user-defined or built-in prompt template mode.
+#[derive(Debug, Deserialize, Clone)]
+pub struct ModeConfig {
+    pub name: String,
+    pub triggers: Vec<String>,
+    #[serde(default)]
+    pub description: String,
+    pub template: String,
+    #[serde(default)]
+    pub output: Option<String>,
+}
+
+/// Configuration for the adaptive dictionary.
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct DictionaryConfig {
+    #[serde(default)]
+    pub entries: HashMap<String, String>,
+    #[serde(default)]
+    pub learning: DictionaryLearningConfig,
+}
+
+/// Settings for the dictionary learning feature.
+#[derive(Debug, Deserialize, Clone)]
+pub struct DictionaryLearningConfig {
+    #[serde(default = "default_learning_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_suggestion_threshold")]
+    pub suggestion_threshold: u32,
+}
+
 impl Default for HotkeyConfig {
     fn default() -> Self {
         Self {
@@ -86,6 +121,15 @@ impl Default for PasteConfig {
     fn default() -> Self {
         Self {
             method: default_paste_method(),
+        }
+    }
+}
+
+impl Default for DictionaryLearningConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_learning_enabled(),
+            suggestion_threshold: default_suggestion_threshold(),
         }
     }
 }
@@ -125,6 +169,14 @@ fn default_paste_method() -> String {
     "auto".to_string()
 }
 
+fn default_learning_enabled() -> bool {
+    true
+}
+
+fn default_suggestion_threshold() -> u32 {
+    3
+}
+
 pub fn default_cleanup_system_prompt() -> &'static str {
     "Clean up this dictated text. Remove filler words (um, uh, like, you know), \
      fix punctuation and capitalization, normalize numbers and dates, \
@@ -154,6 +206,8 @@ pub fn load(path: Option<&str>) -> Result<Config> {
             stt: SttConfig::default(),
             llm: LlmConfig::default(),
             paste: PasteConfig::default(),
+            modes: Vec::new(),
+            dictionary: DictionaryConfig::default(),
         })
     }
 }
@@ -169,10 +223,14 @@ mod tests {
             stt: SttConfig::default(),
             llm: LlmConfig::default(),
             paste: PasteConfig::default(),
+            modes: Vec::new(),
+            dictionary: DictionaryConfig::default(),
         };
         assert_eq!(config.llm.endpoint, "http://localhost:11434");
         assert_eq!(config.llm.cleanup_model, "qwen3:1.7b");
         assert_eq!(config.paste.method, "auto");
+        assert!(config.dictionary.learning.enabled);
+        assert_eq!(config.dictionary.learning.suggestion_threshold, 3);
     }
 
     #[test]
@@ -197,5 +255,45 @@ method = "wtype"
         assert_eq!(config.hotkeys.dictate, "Ctrl+Alt+D");
         assert_eq!(config.llm.cleanup_model, "qwen3:0.6b");
         assert_eq!(config.paste.method, "wtype");
+    }
+
+    #[test]
+    fn test_parse_modes_config() {
+        let toml_str = r#"
+[[modes]]
+name = "test-mode"
+triggers = ["test this", "try this"]
+description = "A test mode"
+template = "TASK: {{objective}}\nDONE"
+output = "clipboard"
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.modes.len(), 1);
+        assert_eq!(config.modes[0].name, "test-mode");
+        assert_eq!(config.modes[0].triggers, vec!["test this", "try this"]);
+        assert_eq!(config.modes[0].output, Some("clipboard".to_string()));
+    }
+
+    #[test]
+    fn test_parse_dictionary_config() {
+        let toml_str = r#"
+[dictionary]
+entries = { "MP" = "MetricsProcessor", "LPCP" = "LogProcessingControlPlane" }
+
+[dictionary.learning]
+enabled = true
+suggestion_threshold = 5
+"#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(
+            config.dictionary.entries.get("MP").unwrap(),
+            "MetricsProcessor"
+        );
+        assert_eq!(
+            config.dictionary.entries.get("LPCP").unwrap(),
+            "LogProcessingControlPlane"
+        );
+        assert!(config.dictionary.learning.enabled);
+        assert_eq!(config.dictionary.learning.suggestion_threshold, 5);
     }
 }

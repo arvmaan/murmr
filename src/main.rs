@@ -3,9 +3,13 @@ mod audio;
 #[allow(dead_code)]
 mod config;
 #[allow(dead_code)]
+mod dictionary;
+#[allow(dead_code)]
 mod input;
 #[allow(dead_code)]
 mod llm;
+#[allow(dead_code)]
+mod modes;
 #[allow(dead_code)]
 mod stt;
 #[allow(dead_code)]
