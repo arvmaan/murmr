@@ -1,0 +1,84 @@
+Convert murmer from a CLI binary into a Tauri v2 desktop app with a lightweight web UI. The existing Rust code in src/ becomes the Tauri backend. A minimal vanilla HTML/CSS/JS frontend provides settings and transcript history.
+
+IMPORTANT: Read CLAUDE.md for build context. The existing src/ modules (audio, stt, llm, modes, dictionary, input, config, tray) stay as-is. They become library code consumed by the Tauri command handlers.
+
+ARCHITECTURE:
+
+src-tauri/
+  Cargo.toml          - Tauri app dependencies, includes murmer as path dep or inlines the modules
+  tauri.conf.json     - Tauri config (window size, title, permissions, macOS entitlements)
+  src/
+    main.rs           - Tauri entry point, setup, system tray, global state
+    commands.rs       - Tauri IPC commands exposed to frontend
+    state.rs          - Shared app state (config, LLM client, recording state, transcript history)
+    lib.rs            - Re-exports from the existing murmer modules
+
+ui/
+  index.html          - Main window with two tabs: Transcripts, Settings
+  style.css           - Dark theme, minimal, clean (similar to Handy's aesthetic)
+  app.js              - Frontend logic, Tauri invoke calls, state rendering
+
+STEP BY STEP:
+
+Phase 1 - Project restructure:
+1. Create a Cargo workspace at the repo root with two members: murmer-core (library) and murmer-app (Tauri binary)
+2. Move existing src/ into murmer-core/src/ with a lib.rs that pub-exports all modules
+3. murmer-core keeps its Cargo.toml dependencies, becomes a library crate
+4. Create murmer-app as a new Tauri v2 app that depends on murmer-core
+5. The old CLI binary can stay as a bin target in murmer-core for headless use
+
+Phase 2 - Tauri backend (src-tauri/src/):
+1. main.rs: Initialize Tauri with system tray (native macOS menu bar icon using tauri::tray), global hotkey registration (tauri-plugin-global-shortcut), and shared state
+2. state.rs: AppState struct holding Config, LlmClient, DictionaryStore, transcript history Vec, recording flag Arc AtomicBool. Wrapped in Mutex for Tauri managed state.
+3. commands.rs - Tauri commands (invokable from JS):
+   - get_config -> Config
+   - save_config(config: Config) -> saves to disk, reinitializes client
+   - get_transcripts -> Vec of TranscriptEntry (timestamp, raw_text, cleaned_text, mode_used)
+   - clear_transcripts
+   - get_dictionary -> all entries
+   - add_dictionary_entry(term, expansion)
+   - remove_dictionary_entry(term)
+   - get_modes -> list of available modes with triggers
+   - check_system -> system readiness report
+   - download_model(name) -> download whisper model with progress
+4. Recording flow: On global hotkey press, start recording in a background thread. On release, stop recording, process through the existing pipeline (VAD, whisper, mode detection, LLM, paste). Emit tauri events to the frontend: recording-started, recording-stopped, transcript-added, processing-error.
+
+Phase 3 - Frontend (ui/):
+1. index.html: Single page with tab nav (Transcripts | Settings). No framework, no build step.
+2. Transcripts tab: Scrollable list of recent transcriptions. Each entry shows timestamp, mode badge (if triggered), raw text (collapsed), cleaned/output text. Most recent at top. Clear all button.
+3. Settings tab: Form sections for:
+   - LLM: endpoint, protocol dropdown (ollama/openai/anthropic/bedrock), api_key (password field), region, cleanup_model, command_model
+   - Hotkeys: dictate key combo, command key combo (text inputs)
+   - Dictionary: table of term/expansion pairs with add/remove buttons
+   - Modes: read-only list of available modes with their triggers
+   - System: check button that runs system readiness, download model button
+4. style.css: Dark theme (#1a1a2e background, #e0e0e0 text), rounded corners, subtle borders, monospace for transcripts. Responsive, works at 400x600 minimum. No external fonts or CDN deps.
+5. app.js: On load, fetch config and transcripts. Listen for Tauri events (recording-started shows red dot, transcript-added prepends to list). Save button calls save_config. All Tauri IPC via window.__TAURI__.invoke().
+
+Phase 4 - System tray and auto-start:
+1. macOS system tray with microphone icon. Menu: Show Window, Separator, Quit
+2. App starts hidden (no dock icon), only tray icon visible. Click tray shows window.
+3. Window close hides to tray instead of quitting (Cmd+Q or tray Quit actually exits)
+4. Recording state shown in tray icon (different icon or color when recording)
+
+Phase 5 - macOS packaging:
+1. tauri.conf.json: Set bundle identifier com.arvmaan.murmer, set macOS entitlements for microphone and accessibility
+2. Icons: Generate placeholder icon set (can be replaced later)
+3. Build produces a .dmg with the app inside
+4. Info.plist entries for NSMicrophoneUsageDescription and Accessibility
+
+CONSTRAINTS:
+- No React, no Svelte, no build toolchain for the frontend. Plain HTML/CSS/JS only.
+- Tauri v2 (not v1). Use @tauri-apps/cli v2 and @tauri-apps/api v2.
+- Keep murmer-core as a standalone library that can still be used as a CLI
+- The frontend must work without an internet connection (no CDN imports)
+- Total UI code should be under 500 lines (it is deliberately minimal)
+- Dark theme only, no theme switching
+
+VERIFICATION after each phase:
+cargo build (in workspace root)
+cargo test -p murmer-core --no-default-features
+npm run tauri dev (should open the window)
+npm run tauri build (should produce .app bundle)
+
+Output DONE only when: the Tauri app builds, opens a window with settings and transcript tabs, registers global hotkeys, records audio on hotkey press, and the system tray icon appears on macOS.

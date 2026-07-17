@@ -1,0 +1,25 @@
+[package]
+name = "murmer-app"
+version = "0.1.0"
+edition = "2021"
+authors = ["Arvind Maan"]
+description = "murmer desktop app — local voice-to-text with prompt templates"
+license = "MIT"
+
+[dependencies]
+murmer-core = { path = "../murmer-core", default-features = false }
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+
+[features]
+default = ["murmer-core/audio", "murmer-core/stt", "murmer-core/hotkeys"]
+bedrock = ["murmer-core/bedrock"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

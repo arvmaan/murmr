@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>murmer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>murmer</h1>
+    <div id="status" class="status idle">●</div>
+  </header>
+
+  <nav>
+    <button class="tab active" data-tab="transcripts">Transcripts</button>
+    <button class="tab" data-tab="settings">Settings</button>
+  </nav>
+
+  <main>
+    <section id="transcripts" class="panel active">
+      <div class="panel-header">
+        <span>Recent transcriptions</span>
+        <button id="clear-btn" class="btn-small">Clear all</button>
+      </div>
+      <div id="transcript-list" class="transcript-list">
+        <p class="empty-state">No transcriptions yet. Press your hotkey to dictate.</p>
+      </div>
+    </section>
+
+    <section id="settings" class="panel">
+      <div class="settings-group">
+        <h3>LLM Provider</h3>
+        <label>Protocol
+          <select id="llm-protocol">
+            <option value="ollama">Ollama (local)</option>
+            <option value="openai">OpenAI-compatible</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="bedrock">AWS Bedrock</option>
+          </select>
+        </label>
+        <label>Endpoint <input type="text" id="llm-endpoint" placeholder="http://localhost:11434"></label>
+        <label>API Key <input type="password" id="llm-apikey" placeholder="sk-..."></label>
+        <label>Region <input type="text" id="llm-region" placeholder="us-west-2"></label>
+        <label>Cleanup Model <input type="text" id="llm-cleanup-model"></label>
+        <label>Command Model <input type="text" id="llm-command-model"></label>
+      </div>
+
+      <div class="settings-group">
+        <h3>Hotkeys</h3>
+        <label>Dictate <input type="text" id="hotkey-dictate" placeholder="Super+Shift+K"></label>
+        <label>Command <input type="text" id="hotkey-command" placeholder="Super+Shift+L"></label>
+      </div>
+
+      <div class="settings-group">
+        <h3>Dictionary</h3>
+        <div id="dictionary-list" class="dictionary-list"></div>
+        <div class="dict-add">
+          <input type="text" id="dict-term" placeholder="Term (e.g. MP)">
+          <input type="text" id="dict-expansion" placeholder="Expansion (e.g. MetricsProcessor)">
+          <button id="dict-add-btn" class="btn-small">Add</button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <h3>Modes</h3>
+        <div id="modes-list" class="modes-list"></div>
+      </div>
+
+      <div class="settings-group">
+        <h3>System</h3>
+        <button id="check-btn" class="btn">Check System</button>
+        <pre id="check-output"></pre>
+      </div>
+
+      <button id="save-btn" class="btn primary">Save Settings</button>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

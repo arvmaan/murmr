@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
     #[serde(default)]
     pub hotkeys: HotkeyConfig,
@@ -19,7 +19,7 @@ pub struct Config {
     pub dictionary: DictionaryConfig,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HotkeyConfig {
     #[serde(default = "default_dictate_hotkey")]
     pub dictate: String,
@@ -27,7 +27,7 @@ pub struct HotkeyConfig {
     pub command: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SttConfig {
     #[serde(default = "default_model_path")]
     pub model_path: String,
@@ -35,7 +35,7 @@ pub struct SttConfig {
     pub language: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LlmConfig {
     #[serde(default = "default_endpoint")]
     pub endpoint: String,
@@ -56,19 +56,19 @@ pub struct LlmConfig {
     pub region: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CleanupPrompt {
     pub system: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PasteConfig {
     #[serde(default = "default_paste_method")]
     pub method: String,
 }
 
 /// A user-defined or built-in prompt template mode.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ModeConfig {
     pub name: String,
     pub triggers: Vec<String>,
@@ -80,7 +80,7 @@ pub struct ModeConfig {
 }
 
 /// Configuration for the adaptive dictionary.
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct DictionaryConfig {
     #[serde(default)]
     pub entries: HashMap<String, String>,
@@ -89,7 +89,7 @@ pub struct DictionaryConfig {
 }
 
 /// Settings for the dictionary learning feature.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DictionaryLearningConfig {
     #[serde(default = "default_learning_enabled")]
     pub enabled: bool,
