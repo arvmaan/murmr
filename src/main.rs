@@ -230,25 +230,30 @@ async fn process_samples(
     is_command: bool,
     samples: Vec<f32>,
 ) -> Result<()> {
-    // Filter with VAD
+    // Filter with VAD (only if the real Silero ONNX model is available)
     let vad_model_path = dirs::data_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("murmer/models/silero_vad.onnx");
-    let filtered =
+    let filtered = if vad_model_path.exists() {
         match audio::vad::VoiceActivityDetector::new(0.5, vad_model_path.to_str().unwrap_or("")) {
             Ok(mut vad_instance) => {
                 let speech = audio::vad::filter_speech(&mut vad_instance, &samples, 3)?;
                 if speech.is_empty() {
-                    tracing::info!("no speech detected in recording");
-                    return Ok(());
+                    tracing::debug!("VAD filtered all audio, passing raw samples to STT");
+                    samples
+                } else {
+                    speech
                 }
-                speech
             }
             Err(e) => {
-                tracing::debug!("VAD unavailable ({}), using raw audio", e);
+                tracing::debug!("VAD init failed ({}), skipping", e);
                 samples
             }
-        };
+        }
+    } else {
+        tracing::debug!("no VAD model, passing raw audio to STT");
+        samples
+    };
 
     // Transcribe
     let whisper = stt::whisper::WhisperStt::new(&config.stt.model_path, &config.stt.language)?;
