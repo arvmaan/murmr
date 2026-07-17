@@ -8,6 +8,8 @@ pub enum PasteMethod {
     Wtype,
     /// X11: xclip + xdotool key ctrl+v
     Xdotool,
+    /// macOS: pbcopy + osascript Cmd+V
+    MacOS,
     /// Auto-detect based on environment variables
     Auto,
 }
@@ -18,6 +20,7 @@ impl PasteMethod {
         match s.to_lowercase().as_str() {
             "wtype" | "wayland" => Self::Wtype,
             "xdotool" | "x11" | "xorg" => Self::Xdotool,
+            "macos" | "pbcopy" => Self::MacOS,
             _ => Self::Auto,
         }
     }
@@ -32,6 +35,9 @@ impl PasteMethod {
 
     /// Detection logic separated for testability (no env var mutation needed).
     pub fn detect_from_env(wayland_display: Option<&str>, display: Option<&str>) -> Result<Self> {
+        if cfg!(target_os = "macos") {
+            return Ok(Self::MacOS);
+        }
         match (wayland_display, display) {
             (Some(w), _) if !w.is_empty() => Ok(Self::Wtype),
             (_, Some(d)) if !d.is_empty() => Ok(Self::Xdotool),
@@ -50,6 +56,7 @@ impl PasteMethod {
                 ("xclip", is_command_available("xclip")),
                 ("xdotool", is_command_available("xdotool")),
             ],
+            PasteMethod::MacOS => vec![("pbcopy", is_command_available("pbcopy"))],
             PasteMethod::Auto => vec![],
         }
     }
@@ -65,6 +72,7 @@ pub fn paste_text(text: &str, method: &PasteMethod) -> Result<()> {
     match resolved {
         PasteMethod::Wtype => paste_wtype(text),
         PasteMethod::Xdotool => paste_xdotool(text),
+        PasteMethod::MacOS => paste_macos(text),
         PasteMethod::Auto => unreachable!(),
     }
 }
@@ -117,6 +125,41 @@ fn paste_xdotool(text: &str) -> Result<()> {
 
     if !status.success() {
         anyhow::bail!("xdotool exited with status {}", status);
+    }
+
+    Ok(())
+}
+
+fn paste_macos(text: &str) -> Result<()> {
+    // Copy to clipboard via pbcopy
+    let mut child = Command::new("pbcopy")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .context("failed to run pbcopy")?;
+
+    if let Some(ref mut stdin) = child.stdin {
+        use std::io::Write;
+        stdin
+            .write_all(text.as_bytes())
+            .context("failed to write to pbcopy stdin")?;
+    }
+
+    let status = child.wait().context("failed to wait for pbcopy")?;
+    if !status.success() {
+        anyhow::bail!("pbcopy exited with status {}", status);
+    }
+
+    // Simulate Cmd+V via osascript
+    let status = Command::new("osascript")
+        .args([
+            "-e",
+            "tell application \"System Events\" to keystroke \"v\" using command down",
+        ])
+        .status()
+        .context("failed to run osascript for Cmd+V")?;
+
+    if !status.success() {
+        anyhow::bail!("osascript paste exited with status {}", status);
     }
 
     Ok(())

@@ -342,6 +342,9 @@ async fn check_system(config: &config::Config) -> Result<()> {
                 check_command("xclip");
                 check_command("xdotool");
             }
+            Ok(input::paste::PasteMethod::MacOS) => {
+                check_command("pbcopy");
+            }
             Ok(_) => {}
             Err(e) => println!("[FAIL] {}", e),
         },
@@ -352,6 +355,9 @@ async fn check_system(config: &config::Config) -> Result<()> {
         input::paste::PasteMethod::Xdotool => {
             check_command("xclip");
             check_command("xdotool");
+        }
+        input::paste::PasteMethod::MacOS => {
+            check_command("pbcopy");
         }
     }
 
