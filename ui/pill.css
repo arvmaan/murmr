@@ -9,6 +9,7 @@
 :root {
   --accent:        #fee440;
   --accent-bright: #fff06b;
+  --success:       #56d18b;
   --danger:        #f0684f;
   --text:          #f6f1ea;
 }
@@ -143,6 +144,20 @@ body {
 .pill.state-processing .timer { display: none; }
 .pill.state-processing .spinner { display: block; }
 .pill.state-processing .label { display: inline; }
+
+/* done: green dot + "Pasted", no wave/timer/spinner */
+.pill.state-done .dot { background: var(--success); box-shadow: 0 0 8px var(--success); }
+.pill.state-done .wave,
+.pill.state-done .timer,
+.pill.state-done .spinner { display: none; }
+.pill.state-done .label { display: inline; }
+
+/* preview: steady yellow dot + text awaiting confirmation */
+.pill.state-preview .dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.pill.state-preview .wave,
+.pill.state-preview .timer,
+.pill.state-preview .spinner { display: none; }
+.pill.state-preview .label { display: inline; }
 
 /* error: red dot + message, no wave/timer/spinner */
 .pill.state-error .dot { background: var(--danger); box-shadow: 0 0 8px var(--danger); }

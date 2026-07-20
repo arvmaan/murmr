@@ -65,6 +65,10 @@ pub struct CleanupPrompt {
 pub struct PasteConfig {
     #[serde(default = "default_paste_method")]
     pub method: String,
+    /// When true, show the transcribed text in the pill and wait for the user
+    /// to confirm (press the hotkey again / Enter) before pasting. Default off.
+    #[serde(default)]
+    pub preview_before_paste: bool,
 }
 
 /// A user-defined or built-in prompt template mode.
@@ -133,6 +137,7 @@ impl Default for PasteConfig {
     fn default() -> Self {
         Self {
             method: default_paste_method(),
+            preview_before_paste: false,
         }
     }
 }

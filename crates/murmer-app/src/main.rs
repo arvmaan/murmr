@@ -124,6 +124,21 @@ fn hide_pill(app: &AppHandle) {
     });
 }
 
+/// Flash a brief "done" state in the pill, then hide it.
+fn pill_done(app: &AppHandle) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(win) = handle.get_webview_window("pill") {
+            let _ = win.emit("pill:done", ());
+        }
+    });
+    let handle2 = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+        hide_pill(&handle2);
+    });
+}
+
 /// Show a brief error in the pill (e.g. "no speech detected", Bedrock failure),
 /// then auto-hide it after a couple of seconds so it doesn't linger.
 fn pill_error(app: &AppHandle, message: &str) {
@@ -247,19 +262,23 @@ fn main() {
             });
             let h_stop = app.handle().clone();
             app.listen_any("recording-stopped", move |_| {
-                // recording ended, processing begins — keep the pill up, switch state
+                // recording ended, transcription/LLM begins — show the loader.
                 pill_processing(&h_stop);
             });
             let h_done = app.handle().clone();
-            app.listen_any("transcript-added", move |_| {
-                hide_pill(&h_done);
+            app.listen_any("processing-done", move |_| {
+                // full success (transcribed + pasted): flash done, then hide.
+                pill_done(&h_done);
             });
             let h_err = app.handle().clone();
             app.listen_any("processing-error", move |event| {
-                // Show the error briefly in the pill, then auto-hide.
+                // Show the error in the pill, then auto-hide.
                 let msg = event.payload().trim_matches('"').to_string();
                 pill_error(&h_err, &msg);
             });
+            // Note: `transcript-added` intentionally does NOT touch the pill; it
+            // only refreshes the main window's list. The pill is driven by the
+            // explicit processing-done / processing-error signals above.
 
             // Show the window on first launch so opening murmr from Finder /
             // Launchpad / Spotlight actually presents something. After the user

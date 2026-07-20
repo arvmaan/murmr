@@ -8,7 +8,7 @@
 //!   - records each result into the shared transcript history.
 
 use crate::state::{AppState, TranscriptEntry};
-use murmer_core::{audio, input, llm, modes, stt};
+use murmer_core::{audio, config, input, llm, modes, stt};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -116,6 +116,13 @@ async fn event_loop(
         // Holding a key auto-repeats the Press event ~12x/sec; only the state
         // transitions below are logged, not every repeat.
         match event {
+            // Preview mode: a press while text is awaiting confirmation pastes
+            // that text instead of starting a new recording.
+            E::DictatePressed | E::CommandPressed
+                if !recording && state.pending_paste.lock().await.is_some() =>
+            {
+                confirm_pending_paste(&app, &state).await;
+            }
             E::DictatePressed | E::CommandPressed if !recording => {
                 is_command = matches!(event, E::CommandPressed);
                 state.recording.store(true, Ordering::Relaxed);
@@ -239,17 +246,12 @@ async fn process(
         }
     };
 
-    // Paste at the cursor.
-    let paste_method = input::paste::PasteMethod::from_str(&config.paste.method);
-    let to_paste = final_text.clone();
-    tokio::task::spawn_blocking(move || input::paste::paste_text(&to_paste, &paste_method))
-        .await??;
-
-    // Record into history and notify the UI.
+    // Record into history and notify the UI FIRST, so a successful transcription
+    // is never lost if the paste step fails (e.g. missing Accessibility grant).
     let entry = TranscriptEntry {
         timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
         raw_text,
-        cleaned_text: final_text,
+        cleaned_text: final_text.clone(),
         mode_used,
     };
     {
@@ -260,8 +262,46 @@ async fn process(
     }
     let _ = app.emit("transcript-added", entry);
 
+    // Preview mode: don't paste yet — stash the text and show it in the pill,
+    // awaiting the user's confirmation (next hotkey press). See the event loop.
+    if config.paste.preview_before_paste {
+        *state.pending_paste.lock().await = Some(final_text.clone());
+        let _ = app.emit("pill:preview", final_text);
+        return Ok(());
+    }
+
+    paste_now(app, &config, &final_text).await?;
+    let _ = app.emit("processing-done", ());
     tracing::info!("processing complete");
     Ok(())
+}
+
+/// Paste text at the cursor. A failure is surfaced but never discards history —
+/// the text is already saved and on the clipboard.
+async fn paste_now(app: &AppHandle, config: &config::Config, text: &str) -> anyhow::Result<()> {
+    let paste_method = input::paste::PasteMethod::from_str(&config.paste.method);
+    let to_paste = text.to_string();
+    let _ = app;
+    tokio::task::spawn_blocking(move || input::paste::paste_text(&to_paste, &paste_method))
+        .await?
+        .map_err(|e| anyhow::anyhow!("Transcribed & copied, but paste failed: {}", e))
+}
+
+/// Confirm a pending preview: paste the stashed text and clear the pending slot.
+async fn confirm_pending_paste(app: &AppHandle, state: &Arc<AppState>) {
+    let Some(text) = state.pending_paste.lock().await.take() else {
+        return;
+    };
+    let config = state.config.lock().await.clone();
+    match paste_now(app, &config, &text).await {
+        Ok(()) => {
+            let _ = app.emit("processing-done", ());
+        }
+        Err(e) => {
+            tracing::error!("paste failed: {}", e);
+            let _ = app.emit("processing-error", e.to_string());
+        }
+    }
 }
 
 /// Filter samples through Silero VAD when the model is present; otherwise pass

@@ -30,6 +30,9 @@ pub struct AppState {
     /// Sender for hotkey events, set once when the recording loop starts. Lets
     /// re-registered shortcuts (after a settings save) feed the same loop.
     pub hotkey_tx: OnceLock<mpsc::UnboundedSender<HotkeyEvent>>,
+    /// In preview-before-paste mode, holds the transcribed text awaiting the
+    /// user's confirmation. The next hotkey press pastes it instead of recording.
+    pub pending_paste: Mutex<Option<String>>,
 }
 
 impl AppState {
@@ -60,6 +63,7 @@ impl AppState {
             recording: Arc::new(AtomicBool::new(false)),
             record_stop: Mutex::new(None),
             hotkey_tx: OnceLock::new(),
+            pending_paste: Mutex::new(None),
         }
     }
 }

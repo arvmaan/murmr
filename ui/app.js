@@ -49,6 +49,7 @@ async function loadConfig() {
     document.getElementById('llm-command-model').value = config.llm.command_model || spec.defaults.command;
     document.getElementById('hotkey-dictate').value = config.hotkeys.dictate || '';
     document.getElementById('hotkey-command').value = config.hotkeys.command || '';
+    document.getElementById('preview-before-paste').checked = !!(config.paste && config.paste.preview_before_paste);
     // Mark the loaded protocol as active so applyProtocolFields keeps the saved
     // models instead of resetting them to defaults.
     activeProtocol = proto;
@@ -295,6 +296,10 @@ function setupListeners() {
         ...(base.hotkeys || {}),
         dictate: document.getElementById('hotkey-dictate').value,
         command: document.getElementById('hotkey-command').value,
+      },
+      paste: {
+        ...(base.paste || {}),
+        preview_before_paste: document.getElementById('preview-before-paste').checked,
       },
     };
     try {

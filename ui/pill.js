@@ -39,6 +39,23 @@ function startProcessing() {
 }
 
 const labelEl = document.getElementById('label');
+
+function showDone() {
+  processing = true;
+  cancelAnimationFrame(rafId);
+  pill.className = 'pill state-done';
+  if (labelEl) labelEl.textContent = 'Pasted';
+}
+
+function showPreview(text) {
+  processing = true;
+  cancelAnimationFrame(rafId);
+  pill.className = 'pill state-preview';
+  // Show a short prefix of the text plus the confirm hint.
+  const preview = (text || '').replace(/\s+/g, ' ').trim().slice(0, 28);
+  if (labelEl) labelEl.textContent = preview ? `“${preview}…” ⏎` : 'Press hotkey to paste';
+}
+
 function showError(msg) {
   processing = true; // keep visibility handler from resetting to recording
   cancelAnimationFrame(rafId);
@@ -53,6 +70,8 @@ if (window.__TAURI__ && window.__TAURI__.event) {
   const { listen } = window.__TAURI__.event;
   listen('pill:record', startRecording);
   listen('pill:process', startProcessing);
+  listen('pill:done', showDone);
+  listen('pill:preview', (e) => showPreview(e.payload));
   listen('pill:error', (e) => showError(e.payload));
 
   // The pill window is persistent (shown/hidden by the backend, never
