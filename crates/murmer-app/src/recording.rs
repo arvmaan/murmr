@@ -110,17 +110,25 @@ async fn event_loop(
 
     let mut is_command = false;
     let mut recording_handle: Option<std::thread::JoinHandle<Vec<f32>>> = None;
+    // After confirming a preview, swallow key events until the key is released,
+    // so auto-repeat presses during the confirming hold don't start a recording.
+    let mut swallow_until_release = false;
 
     while let Some(event) = rx.recv().await {
         let recording = state.recording.load(Ordering::Relaxed);
         // Holding a key auto-repeats the Press event ~12x/sec; only the state
         // transitions below are logged, not every repeat.
         match event {
+            E::DictateReleased | E::CommandReleased if swallow_until_release => {
+                swallow_until_release = false;
+            }
+            E::DictatePressed | E::CommandPressed if swallow_until_release => {}
             // Preview mode: a press while text is awaiting confirmation pastes
             // that text instead of starting a new recording.
             E::DictatePressed | E::CommandPressed
                 if !recording && state.pending_paste.lock().await.is_some() =>
             {
+                swallow_until_release = true;
                 confirm_pending_paste(&app, &state).await;
             }
             E::DictatePressed | E::CommandPressed if !recording => {
@@ -266,7 +274,18 @@ async fn process(
     // awaiting the user's confirmation (next hotkey press). See the event loop.
     if config.paste.preview_before_paste {
         *state.pending_paste.lock().await = Some(final_text.clone());
-        let _ = app.emit("pill:preview", final_text);
+        let _ = app.emit("preview-ready", final_text);
+
+        // Auto-discard if the user doesn't confirm within 10s, so the pill never
+        // hangs. The text stays in history and on the clipboard.
+        let app_t = app.clone();
+        let state_t = state.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            if state_t.pending_paste.lock().await.take().is_some() {
+                let _ = app_t.emit("preview-discarded", ());
+            }
+        });
         return Ok(());
     }
 

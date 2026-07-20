@@ -114,6 +114,19 @@ fn pill_processing(app: &AppHandle) {
     });
 }
 
+/// Show the transcribed text in the pill, awaiting the user's confirmation
+/// (preview-before-paste mode). Stays visible until confirmed or discarded.
+fn pill_preview(app: &AppHandle, text: &str) {
+    let text = text.to_string();
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(win) = handle.get_webview_window("pill") {
+            let _ = win.show();
+            let _ = win.emit("pill:preview", text);
+        }
+    });
+}
+
 /// Hide the pill (recording flow finished or cancelled).
 fn hide_pill(app: &AppHandle) {
     let handle = app.clone();
@@ -269,6 +282,17 @@ fn main() {
             app.listen_any("processing-done", move |_| {
                 // full success (transcribed + pasted): flash done, then hide.
                 pill_done(&h_done);
+            });
+            let h_prev = app.handle().clone();
+            app.listen_any("preview-ready", move |event| {
+                // preview-before-paste: show the text and await confirmation.
+                let text = event.payload().trim_matches('"').to_string();
+                pill_preview(&h_prev, &text);
+            });
+            let h_disc = app.handle().clone();
+            app.listen_any("preview-discarded", move |_| {
+                // preview timed out or was cancelled — hide the pill.
+                hide_pill(&h_disc);
             });
             let h_err = app.handle().clone();
             app.listen_any("processing-error", move |event| {
