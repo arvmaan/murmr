@@ -291,6 +291,9 @@ fn main() {
             commands::add_dictionary_entry,
             commands::remove_dictionary_entry,
             commands::get_modes,
+            commands::get_builtin_mode_names,
+            commands::add_mode,
+            commands::remove_mode,
             commands::check_system,
         ])
         .build(tauri::generate_context!())

@@ -67,6 +67,12 @@
       <div class="settings-group">
         <h3>Modes</h3>
         <div id="modes-list" class="modes-list"></div>
+        <div class="mode-add">
+          <input type="text" id="mode-name" placeholder="name (e.g. brief)">
+          <input type="text" id="mode-triggers" placeholder="triggers, comma-separated (e.g. brief this, tldr)">
+          <textarea id="mode-template" rows="3" placeholder="template — use {{raw_dictation}} for your spoken text"></textarea>
+          <button id="mode-add-btn" class="btn-small">Add mode</button>
+        </div>
       </div>
 
       <div class="settings-group">

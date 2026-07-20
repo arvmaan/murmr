@@ -19,12 +19,7 @@ pub async fn save_config(
     config: Config,
 ) -> Result<(), String> {
     // Save to disk
-    let config_path = murmer_core::config::config_path();
-    if let Some(parent) = config_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    let toml_str = toml::to_string_pretty(&config).map_err(|e| e.to_string())?;
-    std::fs::write(&config_path, toml_str).map_err(|e| e.to_string())?;
+    write_config(&config)?;
 
     // Reinitialize client
     let endpoint = if config.llm.protocol.as_deref() == Some("bedrock") {
@@ -120,6 +115,62 @@ pub async fn get_modes(state: State<'_, Arc<AppState>>) -> Result<Vec<ModeConfig
     let config = state.config.lock().await;
     let registry = ModeRegistry::new(&config.modes);
     Ok(registry.all_modes().to_vec())
+}
+
+/// Built-in mode names, so the UI can protect them from removal.
+#[tauri::command]
+pub fn get_builtin_mode_names() -> Vec<String> {
+    murmer_core::modes::registry::builtin_names()
+}
+
+/// Add or overwrite a user mode, then persist config to disk.
+#[tauri::command]
+pub async fn add_mode(
+    state: State<'_, Arc<AppState>>,
+    name: String,
+    triggers: Vec<String>,
+    template: String,
+) -> Result<(), String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("mode name is required".into());
+    }
+    let mut config = state.config.lock().await;
+    let mode = ModeConfig {
+        name: name.clone(),
+        triggers: triggers
+            .into_iter()
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+            .collect(),
+        description: String::new(),
+        template,
+        output: None,
+    };
+    // Replace an existing user mode with the same name, else append.
+    match config.modes.iter().position(|m| m.name == name) {
+        Some(i) => config.modes[i] = mode,
+        None => config.modes.push(mode),
+    }
+    write_config(&config)
+}
+
+/// Remove a user mode by name (built-ins are ignored). Persists config.
+#[tauri::command]
+pub async fn remove_mode(state: State<'_, Arc<AppState>>, name: String) -> Result<(), String> {
+    let mut config = state.config.lock().await;
+    config.modes.retain(|m| m.name != name);
+    write_config(&config)
+}
+
+/// Serialize config to its TOML file. Shared by the config/mode commands.
+fn write_config(config: &Config) -> Result<(), String> {
+    let path = murmer_core::config::config_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let toml_str = toml::to_string_pretty(config).map_err(|e| e.to_string())?;
+    std::fs::write(&path, toml_str).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

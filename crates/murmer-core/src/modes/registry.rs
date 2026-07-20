@@ -78,6 +78,11 @@ impl ModeRegistry {
     }
 }
 
+/// Names of the built-in modes (which cannot be removed, only overridden).
+pub fn builtin_names() -> Vec<String> {
+    builtin_modes().into_iter().map(|m| m.name).collect()
+}
+
 /// Built-in default modes that are always available.
 fn builtin_modes() -> Vec<ModeConfig> {
     vec![

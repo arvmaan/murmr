@@ -22,9 +22,15 @@ async function init() {
   setupListeners();
 }
 
+// The last config loaded from the backend. Save merges the form's fields into
+// this so we never clobber settings the form doesn't expose (modes, stt,
+// dictionary learning, etc.).
+let currentConfig = null;
+
 async function loadConfig() {
   try {
     const config = await invoke('get_config');
+    currentConfig = config;
     document.getElementById('llm-protocol').value = config.llm.protocol || 'ollama';
     document.getElementById('llm-endpoint').value = config.llm.endpoint || '';
     document.getElementById('llm-apikey').value = config.llm.api_key || '';
@@ -230,14 +236,28 @@ function renderDictionary(entries) {
 
 async function loadModes() {
   try {
-    const modes = await invoke('get_modes');
+    const [modes, builtins] = await Promise.all([
+      invoke('get_modes'),
+      invoke('get_builtin_mode_names'),
+    ]);
+    const builtinSet = new Set(builtins);
     const list = document.getElementById('modes-list');
-    list.innerHTML = modes.map(m => `
+    list.innerHTML = modes.map(m => {
+      const custom = !builtinSet.has(m.name);
+      return `
       <div class="mode-item">
         <span class="mode-name">${escapeHtml(m.name)}</span>
-        <span class="mode-triggers">${m.triggers.map(t => `"${t}"`).join(', ')}</span>
-      </div>
-    `).join('');
+        <span class="mode-triggers">${m.triggers.map(t => `"${escapeHtml(t)}"`).join(', ')}</span>
+        ${custom ? `<span class="remove" data-mode="${escapeHtml(m.name)}" title="Remove">×</span>` : ''}
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('.remove').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await invoke('remove_mode', { name: btn.dataset.mode });
+        await loadModes();
+      });
+    });
   } catch (e) {
     console.error('failed to load modes:', e);
   }
@@ -249,27 +269,29 @@ function setupListeners() {
 
   // Save settings
   document.getElementById('save-btn').addEventListener('click', async () => {
+    // Merge the form's fields into the loaded config so we never wipe settings
+    // the form doesn't expose (modes, stt.model_path, dictionary, etc.).
+    const base = currentConfig || {};
     const config = {
+      ...base,
       llm: {
+        ...(base.llm || {}),
         protocol: document.getElementById('llm-protocol').value || null,
         endpoint: document.getElementById('llm-endpoint').value,
         api_key: document.getElementById('llm-apikey').value || null,
         region: document.getElementById('llm-region').value || null,
         cleanup_model: document.getElementById('llm-cleanup-model').value,
         command_model: document.getElementById('llm-command-model').value,
-        cleanup_prompt: null,
       },
       hotkeys: {
+        ...(base.hotkeys || {}),
         dictate: document.getElementById('hotkey-dictate').value,
         command: document.getElementById('hotkey-command').value,
       },
-      stt: { model_path: '', language: 'en' },
-      paste: { method: 'auto' },
-      modes: [],
-      dictionary: { entries: {}, learning: { enabled: true, suggestion_threshold: 3 } },
     };
     try {
       await invoke('save_config', { config });
+      currentConfig = config;
       document.getElementById('save-btn').textContent = 'Saved!';
       setTimeout(() => { document.getElementById('save-btn').textContent = 'Save Settings'; }, 1500);
     } catch (e) {
@@ -292,6 +314,27 @@ function setupListeners() {
       document.getElementById('dict-term').value = '';
       document.getElementById('dict-expansion').value = '';
       await loadDictionary();
+    }
+  });
+
+  // Add custom mode
+  document.getElementById('mode-add-btn').addEventListener('click', async () => {
+    const name = document.getElementById('mode-name').value.trim();
+    const triggers = document.getElementById('mode-triggers').value
+      .split(',').map(t => t.trim()).filter(Boolean);
+    const template = document.getElementById('mode-template').value;
+    if (!name || triggers.length === 0 || !template.trim()) {
+      alert('A mode needs a name, at least one trigger, and a template.');
+      return;
+    }
+    try {
+      await invoke('add_mode', { name, triggers, template });
+      document.getElementById('mode-name').value = '';
+      document.getElementById('mode-triggers').value = '';
+      document.getElementById('mode-template').value = '';
+      await loadModes();
+    } catch (e) {
+      alert('Add mode failed: ' + e);
     }
   });
 
