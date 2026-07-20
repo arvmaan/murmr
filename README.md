@@ -1,94 +1,126 @@
-# murmer
+# murmr
 
-Voice-to-text that just works, locally.
+**Speak sloppy, prompt sharp.**
 
-A single native binary for Linux that turns speech into clean, formatted text at your cursor. No Electron, no cloud, no meetings, no notes. Just press a key, talk, and get polished text.
+A voice dictation tool that turns speech into clean text at your cursor — and turns
+casual speech into rigorous prompts. Hold a hotkey, talk, release. murmr transcribes
+locally with whisper, cleans it up with an LLM, and pastes at your cursor.
+
+Its differentiating feature is **voice-triggered prompt templates**: say
+_"loop this: get the tests passing"_ and murmr compiles your casual speech into a
+long-horizon prompt with a success predicate, non-counting outcomes, and verification
+gates.
 
 ## How it works
 
 ```
-[Hotkey] → Record → whisper.cpp STT → Ollama LLM cleanup → Paste at cursor
+[Hotkey] → Record → whisper STT → LLM (cleanup / mode template / command) → Paste at cursor
 ```
 
-**Cleanup mode**: Press hotkey, speak naturally, release. murmer removes fillers ("um", "uh", "like"), fixes punctuation and capitalization, normalizes numbers, and pastes clean text where your cursor is.
+- **Dictate** (`Super+Shift+K`): speak naturally; murmr strips fillers, fixes
+  punctuation/capitalization, honors self-corrections, and pastes clean text. If your
+  speech starts with a mode trigger, it runs that template instead (see below).
+- **Command** (`Super+Shift+L`): speak an instruction ("translate to Spanish: …",
+  "summarize this", "rewrite more formally") and murmr pastes the transformed result.
 
-**Command mode**: Press a different hotkey, speak an instruction ("translate this to Spanish", "summarize the above", "rewrite more formally"), and murmer sends your instruction to the LLM and pastes the result.
+While recording, a **pill** drops from the top of the screen showing a live waveform
+and timer; it switches to "Transcribing…" while the LLM works.
 
-## Design principles
+## Voice template modes
 
-- **Local only** — zero network calls, ever. Audio never leaves your machine.
-- **Lightweight** — single Rust binary (~15MB). No Electron, no bundled runtime.
-- **Linux-first** — Wayland and X11, PipeWire and PulseAudio. Tested on GNOME, KDE, Hyprland.
-- **Fast** — persistent Ollama connection, tiny cleanup model (0.6–1.7B), sub-second latency.
-- **Single-purpose** — dictation and paste. That's it.
-- **Work-safe** — no telemetry, no analytics, no cloud integrations, auditable source.
+Built-in modes match a trigger phrase at the start of your speech, then compile the
+rest into a rigorous prompt:
 
-## Prerequisites
+| Mode | Triggers | Turns speech into… |
+|------|----------|--------------------|
+| **loop** | "loop this", "ralph this", "iterate on" | a persistence-gated brief with a success predicate + verification gate |
+| **review** | "review this", "audit" | an adversarial review brief with a failure-mode checklist |
+| **spec** | "spec this", "specify" | a pseudo-formal specification (definitions, predicate, non-counting outcomes) |
+| **fan** | "fan out", "parallel" | a diverse parallel-search orchestration brief |
+| **command** | "translate", "summarize", "rewrite", "explain" | a direct LLM transformation |
 
-- [Ollama](https://ollama.ai) running locally with a model pulled:
-  ```bash
-  ollama pull qwen3:1.7b    # recommended for cleanup
-  ollama pull phi4-mini      # recommended for command mode
-  ```
-- A whisper.cpp compatible GGUF model (murmer downloads whisper-base by default on first run)
-- Linux with PipeWire or PulseAudio
-- `wtype` (Wayland) or `xdotool` (X11) for paste-at-cursor
+Modes are plain config — you can override the built-ins or add your own in
+`config.toml`.
 
-## Installation
+## LLM backends
+
+murmr auto-detects the protocol from your config. Supported:
+
+- **AWS Bedrock** — uses your AWS credentials (no API key), just set the region
+- **Anthropic** — API key
+- **OpenAI-compatible** — endpoint + API key
+- **Ollama** — local, no key (fully offline with local whisper)
+
+## Repo layout (Cargo workspace)
+
+```
+crates/
+  murmer-core/            # library: all the logic; also ships a headless CLI (bin: murmer)
+    src/
+      audio/              # cpal capture, Silero VAD
+      stt/                # whisper-rs transcription
+      llm/                # LlmClient (Ollama/OpenAI/Anthropic/Bedrock) + prompts
+      modes/              # voice-template engine: registry, extractor, context, engine
+      dictionary/         # adaptive vocabulary learning
+      input/              # hotkeys (rdev), paste (wtype/xdotool/pbcopy+osascript)
+      config.rs           # TOML config
+  murmer-app/             # Tauri v2 desktop app (macOS)
+    src/
+      main.rs             # entry, tray, pill window, reopen handling
+      recording.rs        # hotkey → capture → transcribe → LLM → paste pipeline
+      commands.rs         # IPC commands for the UI
+      state.rs            # shared app state
+      transcripts.rs      # transcript history persistence
+ui/                       # vanilla HTML/CSS/JS frontend (no build step)
+  index.html style.css app.js   # main window (Transcripts / Settings)
+  pill.html  pill.css  pill.js   # recording pill overlay
+```
+
+## Building
 
 ```bash
-# From source
-cargo install --path .
+# Headless CLI (works cross-platform):
+cargo run -p murmer-core --bin murmer --features bedrock -- -c ~/.config/murmer/config.toml
 
-# Or build manually
-cargo build --release
-./target/release/murmer
+# macOS desktop app (dev):
+cargo tauri dev --features bedrock
+
+# macOS desktop app bundle (.app + .dmg):
+cargo tauri build --features bedrock
 ```
+
+See [INSTALL.md](INSTALL.md) for the full macOS install + permissions guide.
 
 ## Configuration
 
-Config lives at `~/.config/murmer/config.toml`:
+Config lives at `~/.config/murmer/config.toml` (used on macOS too — the app prefers
+this XDG-style path). Transcript history persists to `~/.config/murmer/transcripts.json`.
 
 ```toml
+[llm]
+protocol = "bedrock"          # bedrock | anthropic | openai | ollama
+region = "us-west-2"          # bedrock
+cleanup_model = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+command_model = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+
 [hotkeys]
-dictate = "Super+Shift+D"      # Push-to-talk for dictation
-command = "Super+Shift+C"      # Push-to-talk for command mode
+dictate = "Super+Shift+K"
+command = "Super+Shift+L"
 
 [stt]
-model_path = "~/.local/share/murmer/models/ggml-base.en.bin"
+model_path = ""               # defaults to ~/Library/Application Support/murmer/models/ggml-base.en.bin on macOS
 language = "en"
 
-[llm]
-endpoint = "http://localhost:11434"
-cleanup_model = "qwen3:1.7b"
-command_model = "phi4-mini"
-
-[llm.cleanup_prompt]
-system = """Clean up this dictated text. Remove filler words, fix punctuation and capitalization, normalize numbers. Do NOT change meaning or add content. Output only the cleaned text."""
-
-[paste]
-method = "auto"  # auto-detects wayland vs x11
+[dictionary]
+entries = { "MP" = "MetricsProcessor", "LPCP" = "LogProcessingControlPlane" }
 ```
 
-## Architecture
+## Design principles
 
-```
-src/
-├── main.rs           # Entry point, tray setup, event loop
-├── audio/
-│   ├── capture.rs    # cpal audio capture (PipeWire/PulseAudio/ALSA)
-│   └── vad.rs        # Silero VAD via ort (ONNX Runtime)
-├── stt/
-│   └── whisper.rs    # whisper-rs bindings to whisper.cpp
-├── llm/
-│   ├── client.rs     # Ollama HTTP client (reqwest)
-│   └── prompts.rs    # Cleanup and command system prompts
-├── input/
-│   ├── hotkey.rs     # Global hotkey capture (evdev/rdev)
-│   └── paste.rs      # Paste-at-cursor (wtype/xdotool)
-├── config.rs         # TOML config parsing
-└── tray.rs           # System tray indicator (ksni)
-```
+- **Local STT** — audio is transcribed on-device with whisper.
+- **Bring your own LLM** — cloud (Bedrock/Anthropic/OpenAI) or fully local (Ollama).
+- **Push-to-talk** — hold to record, release to process. No always-on listening.
+- **Prompt templates as a first-class voice primitive** — the signature feature.
 
 ## License
 

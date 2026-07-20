@@ -4,26 +4,22 @@
   "version": "0.1.0",
   "identifier": "com.arvmaan.murmer",
   "build": {
-    "frontendDist": "../../ui",
-    "devUrl": "http://localhost:1420"
+    "frontendDist": "../../ui"
   },
   "app": {
     "withGlobalTauri": true,
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "murmer",
+        "title": "murmr",
         "width": 480,
         "height": 640,
         "resizable": true,
         "visible": false,
-        "decorations": true
+        "decorations": true,
+        "titleBarStyle": "Overlay"
       }
     ],
-    "trayIcon": {
-      "iconPath": "icons/icon.png",
-      "iconAsTemplate": true
-    },
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
     }

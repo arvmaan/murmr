@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Shown in the macOS permission prompt when murmr first records. -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>murmr records your voice to transcribe it into text at your cursor.</string>
+
+    <!-- Explains the Accessibility / Apple Events prompt (used to paste). -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>murmr pastes transcribed text into the app you are using.</string>
+
+    <!-- Launch as a menu-bar agent: no Dock icon, no default window. -->
+    <key>LSUIElement</key>
+    <true/>
+</dict>
+</plist>

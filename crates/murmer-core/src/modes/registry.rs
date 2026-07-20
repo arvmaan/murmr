@@ -141,65 +141,94 @@ fn builtin_modes() -> Vec<ModeConfig> {
 }
 
 const LOOP_TEMPLATE: &str = "\
-TASK: {{extracted_objective}}
+OBJECTIVE: {{extracted_objective}}
 
 SUCCESS PREDICATE: {{extracted_success_condition}}
+This is a property of the finished artifact, not of your confidence in it.
 
 DOES NOT COUNT:
 {{generated_non_counting_outcomes}}
 
-EFFORT: Assume a solution exists. Iterate for at least 20 attempts before \
-considering returning. After each attempt, verify against the success predicate.
+VERIFICATION: After each attempt, check the artifact against the success \
+predicate with a concrete, repeatable test. A pass you cannot reproduce does \
+not count as a pass.
 
-RETURN CONDITION: Return only when the artifact satisfies the success predicate. \
-Do not return partial progress, plans, or explanations of difficulty.";
+PERSISTENCE: Assume a solution exists. Do not stop because the task is hard, \
+because progress is slow, or because you have already tried several times. \
+Stop only when the success predicate holds under verification.
+
+SOURCES: Use external search for background and prior art only — never to \
+obtain the answer the predicate must be satisfied by independently.
+
+RETURN: Return only the artifact that passes verification. Do not return \
+partial progress, a plan, a summary, or an explanation of difficulty.";
 
 const REVIEW_TEMPLATE: &str = "\
-TASK: Adversarially verify the following artifact. Your job is to REFUTE, not confirm.
+TASK: Adversarially verify the following artifact. Your job is to REFUTE it, \
+not to confirm it. Approach it fresh; do not trust its author's reasoning.
 
 ARTIFACT:
 {{context:clipboard_or_git_diff}}
 
 FOCUS: {{extracted_focus}}
 
-FAILURE MODE CHECKLIST:
+FAILURE-MODE CHECKLIST (audit against each — do not settle for generic quality notes):
 {{generated_failure_modes}}
 
-RETURN: List confirmed defects with evidence. If no defects survive scrutiny, state that explicitly.";
+METHOD: For every claimed defect, give a concrete failing case — an input, \
+state, or scenario that triggers it — not a vague concern. If you cannot \
+construct one, do not report it. Treat \"looks fine\" as unverified, not passed.
+
+RETURN: List only confirmed defects, each with its reproducing evidence, \
+ordered by severity. If no defect survives scrutiny, say so explicitly rather \
+than inventing minor nits.";
 
 const SPEC_TEMPLATE: &str = "\
-Convert the following intent into a rigorous task specification.
+Convert the following intent into a rigorous task specification. Write the \
+success predicate first; if you cannot state one checkable sentence, say so \
+rather than inventing scope.
 
 INTENT: \"{{raw_dictation}}\"
 
 Output this exact structure:
 
-DEFINITIONS: (load-bearing terms with edge cases defined)
+DEFINITIONS: Every load-bearing term, defined starting from its degenerate and \
+edge cases — the ones a lazy solution would exploit.
 
-TASK: (exact success predicate with quantifiers and scope)
+TASK: One exact success predicate, with quantifiers and scope. State what the \
+finished artifact must satisfy, measured over what population or range.
 
-DOES NOT COUNT:
-(enumerated near-misses that would not satisfy the intent)
+DOES NOT COUNT: Enumerated near-misses that satisfy the wording but not the \
+intent — narrowed scope, reduction to an unvalidated assumption, anecdotal or \
+small-sample evidence, a plan or survey in place of the artifact.
 
-VERIFICATION: (how to check the result is correct)
+VERIFICATION: A concrete, repeatable procedure that decides whether the \
+predicate holds. Independent of the process that produced the artifact.
 
-RETURN CONDITION: (predicate over the artifact, not over confidence)";
+RETURN CONDITION: A predicate over the artifact, never over confidence. \
+\"I believe it works\" is not a return condition; \"the verification passes\" is.";
 
 const FAN_TEMPLATE: &str = "\
-TASK: {{extracted_objective}}
+OBJECTIVE: {{extracted_objective}}
 
 ORCHESTRATION:
-- Begin with genuinely diverse approaches (minimum 3 distinct families)
-- Keep early workers blind to the favored approach
-- Mark routes blocked at goal-strength gaps
-- Cross-pollinate only after independent development
+- Begin with a genuinely diverse portfolio — at least 3 approach families that \
+  differ by underlying mechanism, not by wording or role label.
+- Keep early workers blind to any favored approach so they cannot converge on it.
+- Track approaches in a registry grouped by idea. Mark a route blocked when it \
+  stalls at a step as hard as the goal itself; reopen it only for a materially \
+  new mechanism, not a retry.
+- Develop approaches independently first; cross-pollinate only late.
 
-APPROACH REGISTRY (seed — workers will expand):
+APPROACH REGISTRY (seed — workers expand this):
 {{generated_approaches}}
 
-VERIFICATION: Adversarial audit of every candidate.
+VERIFICATION: Adversarially audit every candidate with a fresh perspective, \
+not self-critique. If independent workers agree, treat that as a signal they \
+lacked diversity, not as confirmation the answer is right.
 
-RETURN: Only when a candidate survives adversarial audit.";
+RETURN: Only a candidate that survives the adversarial audit. A status report \
+on progress is not a candidate.";
 
 #[cfg(test)]
 mod tests {

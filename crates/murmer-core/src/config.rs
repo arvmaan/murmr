@@ -189,14 +189,32 @@ fn default_suggestion_threshold() -> u32 {
     3
 }
 
+/// The default dictation cleanup system prompt. Delegates to the canonical
+/// definition in `llm::prompts` so there is a single source of truth.
 pub fn default_cleanup_system_prompt() -> &'static str {
-    "Clean up this dictated text. Remove filler words (um, uh, like, you know), \
-     fix punctuation and capitalization, normalize numbers and dates, \
-     honor self-corrections (e.g. 'no wait, Friday' means use Friday). \
-     Do NOT change meaning, add content, or explain. Output ONLY the cleaned text."
+    crate::llm::prompts::DEFAULT_CLEANUP_PROMPT
 }
 
 pub fn config_path() -> PathBuf {
+    // Prefer the XDG-style ~/.config/murmer/config.toml. On macOS
+    // `dirs::config_dir()` resolves to ~/Library/Application Support, but murmer
+    // has always documented and used ~/.config. If a config already exists there,
+    // that is the canonical file for both reading and writing so the app and the
+    // CLI (`-c ~/.config/murmer/config.toml`) never diverge.
+    if let Some(home) = dirs::home_dir() {
+        let xdg = home.join(".config/murmer/config.toml");
+        if xdg.exists() {
+            return xdg;
+        }
+    }
+
+    // Fall back to the platform config dir. When neither exists yet, prefer
+    // ~/.config so a freshly-created config lands in the documented location.
+    #[cfg(target_os = "macos")]
+    if let Some(home) = dirs::home_dir() {
+        return home.join(".config/murmer/config.toml");
+    }
+
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("~/.config"))
         .join("murmer/config.toml")

@@ -30,18 +30,26 @@ pub async fn extract_slots(
         .join("\n");
 
     let system_prompt = format!(
-        "You are a slot extraction assistant. Given speech input, extract structured values.\n\
+        "You compile casual dictation into the slots of a rigorous prompt template. \
+         The user speaks loosely; you turn their intent into sharp, checkable content.\n\
          \n\
-         Extract these slots from the user's speech:\n\
+         Fill exactly these slots — one JSON key per slot, no more, no fewer:\n\
          {}\n\
          \n\
          Rules:\n\
-         - For 'extracted_*' slots: interpret and clean up the user's intent into a clear statement\n\
-         - For 'generated_*' slots: generate appropriate content based on the extracted objective\n\
-         - For 'raw_dictation': use the exact input text\n\
+         - 'extracted_*' slots: interpret and sharpen the user's intent into a clear, \
+         specific statement. Do not editorialize or add scope they did not ask for.\n\
+         - 'generated_*' slots: generate the requested scaffolding grounded in the \
+         extracted objective. Be concrete and domain-specific — generic filler is worse \
+         than nothing. Follow the exact format named in each slot's description.\n\
+         - 'raw_dictation': the exact input text, unchanged.\n\
+         - Every slot MUST be present and non-empty. If a slot cannot be grounded in the \
+         input, infer the most reasonable specific value rather than leaving it blank.\n\
          \n\
-         Respond with ONLY valid JSON. No markdown, no explanation. Example:\n\
-         {{\"extracted_objective\": \"value\", \"extracted_success_condition\": \"value\"}}",
+         Output ONLY a single valid JSON object. No markdown fences, no prose. Every value \
+         is a JSON string; escape newlines inside a value as \\n so the JSON stays valid.\n\
+         Example shape (values illustrative):\n\
+         {{\"extracted_objective\": \"...\", \"extracted_success_condition\": \"...\"}}",
         slot_descriptions
     );
 
@@ -153,17 +161,61 @@ fn parse_slot_json(
             }
         }
         _ => {
-            // If JSON parsing fails, use the raw text for all extracted slots
             tracing::warn!("failed to parse LLM slot extraction response as JSON");
-            for slot in expected_slots {
-                if slot.starts_with("extracted_") && !map.contains_key(slot) {
-                    map.insert(slot.clone(), raw_text.to_string());
-                }
-            }
+        }
+    }
+
+    // Guarantee every declared slot has a value. A slot left unfilled would
+    // otherwise leak its raw `{{placeholder}}` into the final prompt (fill_template
+    // leaves unmatched placeholders verbatim). Whether the JSON failed entirely or
+    // merely omitted a slot, fall back to a sensible default per slot kind.
+    for slot in expected_slots {
+        let missing = map.get(slot).map(|v| v.trim().is_empty()).unwrap_or(true);
+        if missing {
+            map.insert(slot.clone(), fallback_slot_value(slot, raw_text));
         }
     }
 
     Ok(map)
+}
+
+/// A safe default for a slot the LLM failed to produce, so the filled template is
+/// still coherent rather than containing a stray `{{placeholder}}`.
+fn fallback_slot_value(slot: &str, raw_text: &str) -> String {
+    match slot {
+        // Intent slots degrade to the user's own words — still meaningful.
+        s if s.starts_with("extracted_") || s == "raw_dictation" => raw_text.to_string(),
+        // Generated scaffolding can't be faked well; emit an honest placeholder line
+        // the downstream agent can act on, never a broken template token.
+        "generated_non_counting_outcomes" => {
+            "- (none enumerated — apply your own judgment about answer-shaped non-solutions)"
+                .to_string()
+        }
+        "generated_failure_modes" => {
+            "- (none enumerated — audit for the domain's usual subtle-wrongness modes)".to_string()
+        }
+        "generated_approaches" => {
+            "1. (none seeded — begin from genuinely distinct approach families)".to_string()
+        }
+        _ => raw_text.to_string(),
+    }
+}
+
+/// Remove any template placeholders that were never filled, as a last-resort
+/// safety net so a stray `{{slot}}` can never reach the user's cursor.
+pub fn strip_unfilled_placeholders(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("{{") {
+        if let Some(end_rel) = rest[start + 2..].find("}}") {
+            result.push_str(&rest[..start]);
+            rest = &rest[start + 2 + end_rel + 2..];
+        } else {
+            break;
+        }
+    }
+    result.push_str(rest);
+    result
 }
 
 /// Try to extract JSON from an LLM response that might have markdown wrapping.
@@ -297,5 +349,74 @@ mod tests {
         let slots = vec!["extracted_objective".to_string()];
         let result = parse_slot_json(response, &slots, "raw input").unwrap();
         assert_eq!(result.get("extracted_objective").unwrap(), "raw input");
+    }
+
+    #[test]
+    fn test_parse_slot_json_fills_generated_on_failure() {
+        // On a total JSON failure, generated_* slots must still be filled so no
+        // raw {{placeholder}} can leak into the final prompt.
+        let response = "the model rambled instead of returning JSON";
+        let slots = vec![
+            "extracted_objective".to_string(),
+            "generated_non_counting_outcomes".to_string(),
+        ];
+        let result = parse_slot_json(response, &slots, "get tests passing").unwrap();
+        assert_eq!(
+            result.get("extracted_objective").unwrap(),
+            "get tests passing"
+        );
+        assert!(!result
+            .get("generated_non_counting_outcomes")
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn test_parse_slot_json_fills_omitted_slot() {
+        // Valid JSON that omits a declared slot must still get a fallback value.
+        let response = r#"{"extracted_objective": "fix auth"}"#;
+        let slots = vec![
+            "extracted_objective".to_string(),
+            "generated_failure_modes".to_string(),
+        ];
+        let result = parse_slot_json(response, &slots, "raw").unwrap();
+        assert_eq!(result.get("extracted_objective").unwrap(), "fix auth");
+        assert!(result.contains_key("generated_failure_modes"));
+        assert!(!result
+            .get("generated_failure_modes")
+            .unwrap()
+            .trim()
+            .is_empty());
+    }
+
+    #[test]
+    fn test_parse_slot_json_empty_value_gets_fallback() {
+        // A slot present but blank should be treated as missing.
+        let response = r#"{"extracted_objective": "   "}"#;
+        let slots = vec!["extracted_objective".to_string()];
+        let result = parse_slot_json(response, &slots, "do the thing").unwrap();
+        assert_eq!(result.get("extracted_objective").unwrap(), "do the thing");
+    }
+
+    #[test]
+    fn test_strip_unfilled_placeholders() {
+        let text = "TASK: real content\nMISSING: {{never_filled}}\nEND";
+        assert_eq!(
+            strip_unfilled_placeholders(text),
+            "TASK: real content\nMISSING: \nEND"
+        );
+    }
+
+    #[test]
+    fn test_strip_unfilled_placeholders_none() {
+        let text = "nothing to strip here";
+        assert_eq!(strip_unfilled_placeholders(text), text);
+    }
+
+    #[test]
+    fn test_strip_unfilled_placeholders_unterminated() {
+        // A stray unterminated "{{" is left as-is rather than eating the rest.
+        let text = "keep this {{ and this";
+        assert_eq!(strip_unfilled_placeholders(text), text);
     }
 }

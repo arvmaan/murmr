@@ -108,7 +108,7 @@ impl HotkeyListener {
     where
         F: FnMut(HotkeyEvent) + Send + 'static,
     {
-        use rdev::{listen, Event, EventType, Key};
+        use rdev::{listen, Event, EventType};
 
         let dictate_key = char_to_rdev_key(self.dictate_combo.key);
         let command_key = char_to_rdev_key(self.command_combo.key);

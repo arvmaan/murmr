@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>murmer</title>
+  <title>murmr</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <h1>murmer</h1>
-    <div id="status" class="status idle">●</div>
+    <h1>murmr</h1>
+    <div id="status" class="status idle"></div>
+    <nav class="segmented" data-active="transcripts">
+      <button class="tab active" data-tab="transcripts">Transcripts</button>
+      <button class="tab" data-tab="settings">Settings</button>
+      <span class="segmented-thumb"></span>
+    </nav>
   </header>
-
-  <nav>
-    <button class="tab active" data-tab="transcripts">Transcripts</button>
-    <button class="tab" data-tab="settings">Settings</button>
-  </nav>
 
   <main>
     <section id="transcripts" class="panel active">
@@ -24,7 +24,7 @@
         <button id="clear-btn" class="btn-small">Clear all</button>
       </div>
       <div id="transcript-list" class="transcript-list">
-        <p class="empty-state">No transcriptions yet. Press your hotkey to dictate.</p>
+        <p class="empty-state">Nothing spoken yet.<br>Hold your hotkey and start talking.</p>
       </div>
     </section>
 
@@ -39,11 +39,13 @@
             <option value="bedrock">AWS Bedrock</option>
           </select>
         </label>
-        <label>Endpoint <input type="text" id="llm-endpoint" placeholder="http://localhost:11434"></label>
-        <label>API Key <input type="password" id="llm-apikey" placeholder="sk-..."></label>
-        <label>Region <input type="text" id="llm-region" placeholder="us-west-2"></label>
-        <label>Cleanup Model <input type="text" id="llm-cleanup-model"></label>
-        <label>Command Model <input type="text" id="llm-command-model"></label>
+        <label id="field-endpoint">Endpoint <input type="text" id="llm-endpoint" placeholder="http://localhost:11434"></label>
+        <label id="field-apikey">API Key <input type="password" id="llm-apikey" placeholder="sk-..."></label>
+        <label id="field-region">Region <input type="text" id="llm-region" placeholder="us-west-2"></label>
+        <label>Cleanup Model <input type="text" id="llm-cleanup-model" list="model-suggestions" autocomplete="off" spellcheck="false"></label>
+        <label>Command Model <input type="text" id="llm-command-model" list="model-suggestions" autocomplete="off" spellcheck="false"></label>
+        <datalist id="model-suggestions"></datalist>
+        <p id="provider-hint" class="provider-hint"></p>
       </div>
 
       <div class="settings-group">

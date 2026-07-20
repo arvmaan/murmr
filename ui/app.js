@@ -1,13 +1,15 @@
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
-// Tab switching
+// Tab switching — drives the segmented pill's sliding thumb via data-active
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById(tab.dataset.tab).classList.add('active');
+    const nav = document.querySelector('nav.segmented');
+    if (nav) nav.dataset.active = tab.dataset.tab;
   });
 });
 
@@ -27,13 +29,96 @@ async function loadConfig() {
     document.getElementById('llm-endpoint').value = config.llm.endpoint || '';
     document.getElementById('llm-apikey').value = config.llm.api_key || '';
     document.getElementById('llm-region').value = config.llm.region || '';
-    document.getElementById('llm-cleanup-model').value = config.llm.cleanup_model || '';
-    document.getElementById('llm-command-model').value = config.llm.command_model || '';
+    const proto = config.llm.protocol || 'ollama';
+    const spec = PROTOCOL_FIELDS[proto] || PROTOCOL_FIELDS.ollama;
+    document.getElementById('llm-cleanup-model').value = config.llm.cleanup_model || spec.defaults.cleanup;
+    document.getElementById('llm-command-model').value = config.llm.command_model || spec.defaults.command;
     document.getElementById('hotkey-dictate').value = config.hotkeys.dictate || '';
     document.getElementById('hotkey-command').value = config.hotkeys.command || '';
+    // Mark the loaded protocol as active so applyProtocolFields keeps the saved
+    // models instead of resetting them to defaults.
+    activeProtocol = proto;
+    applyProtocolFields();
   } catch (e) {
     console.error('failed to load config:', e);
   }
+}
+
+// Which LLM fields each protocol uses, its model suggestions, and defaults.
+const PROTOCOL_FIELDS = {
+  ollama: {
+    endpoint: true, apikey: false, region: false,
+    hint: 'Talks to a local Ollama server. No API key needed.',
+    models: ['llama3.1', 'llama3.2', 'qwen2.5', 'mistral', 'gemma2', 'phi3'],
+    defaults: { cleanup: 'llama3.1', command: 'llama3.1' },
+  },
+  openai: {
+    endpoint: true, apikey: true, region: false,
+    hint: 'Any OpenAI-compatible endpoint. Requires an API key.',
+    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'o3-mini'],
+    defaults: { cleanup: 'gpt-4o-mini', command: 'gpt-4o' },
+  },
+  anthropic: {
+    endpoint: false, apikey: true, region: false,
+    hint: 'Anthropic API. Requires an API key.',
+    models: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-20250514', 'claude-opus-4-1'],
+    defaults: { cleanup: 'claude-haiku-4-5-20251001', command: 'claude-sonnet-4-20250514' },
+  },
+  bedrock: {
+    endpoint: false, apikey: false, region: true,
+    hint: 'AWS Bedrock uses your AWS credentials — no API key. Set the region.',
+    models: [
+      'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+      'us.anthropic.claude-sonnet-4-20250514-v1:0',
+      'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+    ],
+    defaults: {
+      cleanup: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+      command: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+    },
+  },
+};
+
+// Per-provider model values, so switching provider swaps its remembered models.
+const modelMemory = {};       // { protocol: { cleanup, command } }
+let activeProtocol = null;    // protocol currently reflected in the model inputs
+
+function currentProtocol() {
+  return document.getElementById('llm-protocol').value || 'ollama';
+}
+
+// Show/hide LLM inputs, refresh model suggestions, and swap per-provider models.
+function applyProtocolFields() {
+  const proto = currentProtocol();
+  const spec = PROTOCOL_FIELDS[proto] || PROTOCOL_FIELDS.ollama;
+
+  document.getElementById('field-endpoint').style.display = spec.endpoint ? '' : 'none';
+  document.getElementById('field-apikey').style.display   = spec.apikey   ? '' : 'none';
+  document.getElementById('field-region').style.display   = spec.region   ? '' : 'none';
+  document.getElementById('provider-hint').textContent = spec.hint;
+
+  const cleanupEl = document.getElementById('llm-cleanup-model');
+  const commandEl = document.getElementById('llm-command-model');
+
+  // Stash the outgoing provider's model values before switching away.
+  if (activeProtocol && activeProtocol !== proto) {
+    modelMemory[activeProtocol] = {
+      cleanup: cleanupEl.value,
+      command: commandEl.value,
+    };
+  }
+
+  // Restore this provider's remembered models, or fall back to its defaults.
+  if (activeProtocol !== proto) {
+    const remembered = modelMemory[proto];
+    cleanupEl.value = remembered ? remembered.cleanup : spec.defaults.cleanup;
+    commandEl.value = remembered ? remembered.command : spec.defaults.command;
+    activeProtocol = proto;
+  }
+
+  // Refresh the shared datalist with this provider's suggestions.
+  const dl = document.getElementById('model-suggestions');
+  dl.innerHTML = spec.models.map(m => `<option value="${m}"></option>`).join('');
 }
 
 async function loadTranscripts() {
@@ -45,21 +130,70 @@ async function loadTranscripts() {
   }
 }
 
+// Turn an "HH:MM:SS" wall-clock stamp into a compact relative label.
+function relativeTime(stamp) {
+  const now = new Date();
+  const [h, m, s] = String(stamp).split(':').map(Number);
+  if ([h, m, s].some(Number.isNaN)) return stamp;
+  const then = new Date(now);
+  then.setHours(h, m, s, 0);
+  let diff = Math.round((now - then) / 1000);
+  if (diff < 0) diff += 86400; // stamp was yesterday
+  if (diff < 10) return 'just now';
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return stamp;
+}
+
 function renderTranscripts(transcripts) {
   const list = document.getElementById('transcript-list');
   if (transcripts.length === 0) {
-    list.innerHTML = '<p class="empty-state">No transcriptions yet. Press your hotkey to dictate.</p>';
+    list.innerHTML = '<p class="empty-state">Nothing spoken yet.<br>Hold your hotkey and start talking.</p>';
     return;
   }
-  list.innerHTML = transcripts.map(t => `
-    <div class="transcript-entry">
+  list.innerHTML = transcripts.map((t, i) => {
+    const mode = t.mode_used || 'dictate';
+    return `
+    <div class="transcript-entry" data-mode="${escapeHtml(mode)}" data-index="${i}">
       <div class="meta">
-        <span>${t.timestamp}</span>
-        ${t.mode_used ? `<span class="mode-badge">${t.mode_used}</span>` : ''}
+        <span class="mode-tag">${escapeHtml(mode)}</span>
+        <span class="time">${relativeTime(t.timestamp)}</span>
+        <div class="entry-actions">
+          <button class="icon-btn" data-act="copy" title="Copy">⧉</button>
+          <button class="icon-btn" data-act="delete" title="Delete">✕</button>
+        </div>
       </div>
       <div class="output">${escapeHtml(t.cleaned_text)}</div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+
+  // Wire per-card actions.
+  list.querySelectorAll('.transcript-entry').forEach(card => {
+    const idx = Number(card.dataset.index);
+    card.querySelector('[data-act=copy]').addEventListener('click', async () => {
+      const text = transcripts[idx].cleaned_text;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch { /* clipboard may be unavailable; ignore */ }
+      flashCard(card, 'Copied');
+    });
+    card.querySelector('[data-act=delete]').addEventListener('click', async () => {
+      try {
+        await invoke('delete_transcript', { index: idx });
+        await loadTranscripts();
+      } catch (e) { console.error('delete failed:', e); }
+    });
+  });
+}
+
+// Briefly show a label on a card (e.g. "Copied").
+function flashCard(card, label) {
+  const tag = card.querySelector('.mode-tag');
+  if (!tag) return;
+  const prev = tag.textContent;
+  tag.textContent = label;
+  setTimeout(() => { tag.textContent = prev; }, 900);
 }
 
 async function loadDictionary() {
@@ -110,6 +244,9 @@ async function loadModes() {
 }
 
 function setupListeners() {
+  // Reveal only the fields the chosen provider uses
+  document.getElementById('llm-protocol').addEventListener('change', applyProtocolFields);
+
   // Save settings
   document.getElementById('save-btn').addEventListener('click', async () => {
     const config = {

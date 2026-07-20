@@ -3,6 +3,12 @@
 **/*.rs.bk
 *.pdb
 
+# Tauri generated files
+crates/murmer-app/gen/
+
+# UI preview scratch files
+ui/_*.html
+
 # IDE
 .idea/
 .vscode/

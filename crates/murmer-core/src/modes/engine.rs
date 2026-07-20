@@ -103,10 +103,14 @@ async fn execute_mode(
     // Fill the template with extracted slots
     let filled = extractor::fill_template(template, &slots);
 
-    // Resolve context variables
+    // Resolve context variables (e.g. {{context:clipboard_or_git_diff}})
     let resolved = context::resolve_context_variables(&filled, last_output)?;
 
-    Ok(resolved)
+    // Final safety net: never let an unfilled {{placeholder}} reach the user.
+    // Runs last so it cannot eat context variables resolved above.
+    let cleaned = extractor::strip_unfilled_placeholders(&resolved);
+
+    Ok(cleaned)
 }
 
 /// Route the mode result to its destination.

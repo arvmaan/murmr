@@ -53,7 +53,22 @@ pub async fn get_transcripts(
 
 #[tauri::command]
 pub async fn clear_transcripts(state: State<'_, Arc<AppState>>) -> Result<(), String> {
-    state.transcripts.lock().await.clear();
+    let mut list = state.transcripts.lock().await;
+    list.clear();
+    crate::transcripts::save(&list);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_transcript(
+    state: State<'_, Arc<AppState>>,
+    index: usize,
+) -> Result<(), String> {
+    let mut list = state.transcripts.lock().await;
+    if index < list.len() {
+        list.remove(index);
+        crate::transcripts::save(&list);
+    }
     Ok(())
 }
 
@@ -106,19 +121,34 @@ pub async fn check_system(state: State<'_, Arc<AppState>>) -> Result<Vec<String>
     let client = state.client.lock().await;
     let mut results = Vec::new();
 
+    // Describe the LLM target the way the active protocol actually addresses it,
+    // so a Bedrock setup shows its region rather than an unused endpoint.
+    let protocol = config.llm.protocol.as_deref().unwrap_or("ollama");
+    let target = match protocol {
+        "bedrock" => format!(
+            "Bedrock ({})",
+            config.llm.region.as_deref().unwrap_or("us-east-1")
+        ),
+        "anthropic" => "Anthropic API".to_string(),
+        _ => config.llm.endpoint.clone(),
+    };
+
     match client.health_check().await {
-        Ok(true) => results.push(format!("[OK] LLM reachable at {}", config.llm.endpoint)),
-        Ok(false) => results.push(format!("[WARN] LLM returned error at {}", config.llm.endpoint)),
-        Err(e) => results.push(format!("[FAIL] LLM not reachable: {}", e)),
+        Ok(true) => results.push(format!("[OK] LLM reachable — {}", target)),
+        Ok(false) => results.push(format!("[WARN] LLM returned an error — {}", target)),
+        Err(e) => results.push(format!("[FAIL] LLM not reachable ({}): {}", target, e)),
     }
 
     let model_path = &config.stt.model_path;
-    if std::path::Path::new(model_path).exists() {
+    if model_path.is_empty() {
+        results.push("[WARN] Whisper model path not set".to_string());
+    } else if std::path::Path::new(model_path).exists() {
         results.push(format!("[OK] Whisper model at {}", model_path));
     } else {
         results.push(format!("[FAIL] Whisper model not found at {}", model_path));
     }
 
+    results.push(format!("Protocol: {}", protocol));
     results.push(format!("Cleanup model: {}", config.llm.cleanup_model));
     results.push(format!("Command model: {}", config.llm.command_model));
 

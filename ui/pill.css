@@ -1,0 +1,146 @@
+/* ==========================================================================
+   murmr — notch-docked recording pill
+   The pill's top edge is pure black and flush with the notch bottom, so it
+   reads as an extension of the notch. The bottom flares into rounded corners.
+   ========================================================================== */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --accent:        #fee440;
+  --accent-bright: #fff06b;
+  --success:       #56d18b;
+  --text:          #f6f1ea;
+  --text-muted:    #b3a89b;
+}
+
+html, body {
+  height: 100%;
+  background: transparent;   /* the window is transparent; only the pill paints */
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+  font-family: "SF Pro Rounded", ui-rounded, -apple-system, system-ui, sans-serif;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;   /* pill hugs the top edge (the notch) */
+}
+
+/* --------------------------------------------------------------------------
+   pill body — pure black top, rounded bottom, subtle inner glow
+   -------------------------------------------------------------------------- */
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 0 15px 0 13px;
+  background: #000;
+  /* flat top (0 radius) to fuse with the notch, big rounded bottom */
+  border-radius: 0 0 18px 18px;
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  animation: pill-drop 0.34s cubic-bezier(0.34, 1.4, 0.5, 1) both;
+  will-change: transform;
+}
+
+@keyframes pill-drop {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+/* pulsing status dot */
+.dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: dot-pulse 1.3s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.82); }
+}
+
+/* --------------------------------------------------------------------------
+   waveform — animated bars, only while recording
+   -------------------------------------------------------------------------- */
+
+.wave {
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+  height: 18px;
+}
+.wave span {
+  width: 2.5px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+  animation: wave-bounce 0.9s ease-in-out infinite;
+}
+.wave span:nth-child(1) { height: 40%; animation-delay: 0.00s; }
+.wave span:nth-child(2) { height: 70%; animation-delay: 0.12s; }
+.wave span:nth-child(3) { height: 100%; animation-delay: 0.24s; }
+.wave span:nth-child(4) { height: 55%; animation-delay: 0.36s; }
+.wave span:nth-child(5) { height: 85%; animation-delay: 0.18s; }
+.wave span:nth-child(6) { height: 45%; animation-delay: 0.30s; }
+.wave span:nth-child(7) { height: 65%; animation-delay: 0.06s; }
+@keyframes wave-bounce {
+  0%, 100% { transform: scaleY(0.35); opacity: 0.7; }
+  50%      { transform: scaleY(1);    opacity: 1; }
+}
+
+/* live timer */
+.timer {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 30px;
+  text-align: right;
+}
+
+/* processing spinner (hidden until processing) */
+.spinner {
+  display: none;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* processing label ("Transcribing…") — hidden until processing */
+.label {
+  display: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* --------------------------------------------------------------------------
+   states
+   -------------------------------------------------------------------------- */
+
+/* recording (default): dot + wave + timer, no spinner/label */
+.pill.state-recording .spinner,
+.pill.state-recording .label { display: none; }
+
+/* processing: dot goes yellow + pulses, wave & timer hidden, spinner + label show */
+.pill.state-processing .dot {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: dot-pulse 1s ease-in-out infinite;
+}
+.pill.state-processing .wave { display: none; }
+.pill.state-processing .timer { display: none; }
+.pill.state-processing .spinner { display: block; }
+.pill.state-processing .label { display: inline; }

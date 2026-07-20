@@ -22,6 +22,9 @@ pub struct AppState {
     pub dictionary: Mutex<DictionaryStore>,
     pub transcripts: Mutex<Vec<TranscriptEntry>>,
     pub recording: Arc<AtomicBool>,
+    /// Stop-flag handed to the active capture thread, so the release event can
+    /// signal it to finish. `None` when not recording.
+    pub record_stop: Mutex<Option<Arc<AtomicBool>>>,
 }
 
 impl AppState {
@@ -41,17 +44,16 @@ impl AppState {
             config.llm.protocol.as_deref(),
         );
 
-        let dictionary =
-            DictionaryStore::load(&config.dictionary.entries).unwrap_or_else(|_| {
-                DictionaryStore::load(&std::collections::HashMap::new()).unwrap()
-            });
+        let dictionary = DictionaryStore::load(&config.dictionary.entries)
+            .unwrap_or_else(|_| DictionaryStore::load(&std::collections::HashMap::new()).unwrap());
 
         Self {
             config: Mutex::new(config),
             client: Mutex::new(client),
             dictionary: Mutex::new(dictionary),
-            transcripts: Mutex::new(Vec::new()),
+            transcripts: Mutex::new(crate::transcripts::load()),
             recording: Arc::new(AtomicBool::new(false)),
+            record_stop: Mutex::new(None),
         }
     }
 }
