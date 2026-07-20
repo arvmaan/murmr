@@ -27,41 +27,66 @@ use tokio::sync::mpsc;
 pub fn start(app: AppHandle, dictate: String, command: String) {
     let state = app.state::<Arc<AppState>>().inner().clone();
 
-    // Parse the configured combos into plugin shortcuts (e.g. "Super+Shift+K").
-    let dictate_sc = match Shortcut::from_str(&dictate) {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::error!("invalid dictate hotkey '{}': {}", dictate, e);
-            return;
-        }
-    };
-    let command_sc = match Shortcut::from_str(&command) {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::error!("invalid command hotkey '{}': {}", command, e);
-            return;
-        }
-    };
-    let dictate_id = dictate_sc.id();
-    let command_id = command_sc.id();
-
-    // The plugin handler (main run loop) forwards press/release into the same
-    // channel the state machine consumes.
+    // One channel for the app's lifetime. Registered shortcuts send into `tx`;
+    // the state machine consumes `rx`. Re-registration (on settings save) reuses
+    // this same `tx`, so changing a hotkey never orphans the loop.
     let (tx, rx) = mpsc::unbounded_channel::<input::hotkey::HotkeyEvent>();
-    let handler_tx = tx.clone();
+    let _ = state.hotkey_tx.set(tx.clone());
+
+    register_shortcuts(&app, tx, &dictate, &command);
+
+    // Drive the state machine on Tauri's async runtime. (Using Tauri's spawn
+    // rather than tokio::spawn so this works when called from `setup`, before a
+    // bare tokio reactor is necessarily entered.)
+    tauri::async_runtime::spawn(event_loop(app, state, rx));
+}
+
+/// Re-register the global shortcuts after a settings change. Reuses the existing
+/// hotkey channel so the running state machine keeps working.
+pub fn reregister(app: &AppHandle, dictate: &str, command: &str) {
+    let state = app.state::<Arc<AppState>>();
+    let Some(tx) = state.hotkey_tx.get().cloned() else {
+        return; // loop not started yet; nothing to do
+    };
+    let _ = app.global_shortcut().unregister_all();
+    register_shortcuts(app, tx, dictate, command);
+}
+
+/// Parse the combos and bind them on the global-shortcut plugin, forwarding
+/// press/release into `tx`.
+fn register_shortcuts(
+    app: &AppHandle,
+    tx: mpsc::UnboundedSender<input::hotkey::HotkeyEvent>,
+    dictate: &str,
+    command: &str,
+) {
+    let (dictate_sc, command_sc) = match (Shortcut::from_str(dictate), Shortcut::from_str(command))
+    {
+        (Ok(d), Ok(c)) => (d, c),
+        (d, c) => {
+            if let Err(e) = d {
+                tracing::error!("invalid dictate hotkey '{}': {}", dictate, e);
+            }
+            if let Err(e) = c {
+                tracing::error!("invalid command hotkey '{}': {}", command, e);
+            }
+            return;
+        }
+    };
+    let (dictate_id, command_id) = (dictate_sc.id(), command_sc.id());
+
     if let Err(e) = app.global_shortcut().on_shortcuts(
         [dictate_sc, command_sc],
         move |_app, shortcut, event| {
             use input::hotkey::HotkeyEvent as E;
-            let id = shortcut.id();
-            let ev = match (event.state, id) {
+            let ev = match (event.state, shortcut.id()) {
                 (ShortcutState::Pressed, i) if i == dictate_id => E::DictatePressed,
                 (ShortcutState::Released, i) if i == dictate_id => E::DictateReleased,
                 (ShortcutState::Pressed, i) if i == command_id => E::CommandPressed,
                 (ShortcutState::Released, i) if i == command_id => E::CommandReleased,
                 _ => return,
             };
-            let _ = handler_tx.send(ev);
+            let _ = tx.send(ev);
         },
     ) {
         tracing::error!("failed to register global shortcuts: {}", e);
@@ -73,11 +98,6 @@ pub fn start(app: AppHandle, dictate: String, command: String) {
         dictate,
         command
     );
-
-    // Drive the state machine on Tauri's async runtime. (Using Tauri's spawn
-    // rather than tokio::spawn so this works when called from `setup`, before a
-    // bare tokio reactor is necessarily entered.)
-    tauri::async_runtime::spawn(event_loop(app, state, rx));
 }
 
 /// The recording state machine: press starts capture, release processes it.

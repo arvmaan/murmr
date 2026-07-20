@@ -1,10 +1,12 @@
 use murmer_core::config::Config;
 use murmer_core::dictionary::store::DictionaryStore;
+use murmer_core::input::hotkey::HotkeyEvent;
 use murmer_core::llm::client::LlmClient;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::OnceLock;
+use tokio::sync::{mpsc, Mutex};
 
 /// A single transcript entry shown in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,6 +27,9 @@ pub struct AppState {
     /// Stop-flag handed to the active capture thread, so the release event can
     /// signal it to finish. `None` when not recording.
     pub record_stop: Mutex<Option<Arc<AtomicBool>>>,
+    /// Sender for hotkey events, set once when the recording loop starts. Lets
+    /// re-registered shortcuts (after a settings save) feed the same loop.
+    pub hotkey_tx: OnceLock<mpsc::UnboundedSender<HotkeyEvent>>,
 }
 
 impl AppState {
@@ -54,6 +59,7 @@ impl AppState {
             transcripts: Mutex::new(crate::transcripts::load()),
             recording: Arc::new(AtomicBool::new(false)),
             record_stop: Mutex::new(None),
+            hotkey_tx: OnceLock::new(),
         }
     }
 }

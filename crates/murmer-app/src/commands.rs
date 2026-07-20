@@ -13,7 +13,11 @@ pub async fn get_config(state: State<'_, Arc<AppState>>) -> Result<Config, Strin
 }
 
 #[tauri::command]
-pub async fn save_config(state: State<'_, Arc<AppState>>, config: Config) -> Result<(), String> {
+pub async fn save_config(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
+    config: Config,
+) -> Result<(), String> {
     // Save to disk
     let config_path = murmer_core::config::config_path();
     if let Some(parent) = config_path.parent() {
@@ -36,6 +40,9 @@ pub async fn save_config(state: State<'_, Arc<AppState>>, config: Config) -> Res
         config.llm.api_key.as_deref(),
         config.llm.protocol.as_deref(),
     );
+
+    // Re-bind global hotkeys so a changed shortcut takes effect immediately.
+    crate::recording::reregister(&app, &config.hotkeys.dictate, &config.hotkeys.command);
 
     *state.client.lock().await = new_client;
     *state.config.lock().await = config;
