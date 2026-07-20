@@ -1,53 +1,40 @@
 #!/bin/bash
-# Build murmer as a macOS .app bundle
-# Usage: ./scripts/bundle-macos.sh [--release]
+# Build, ad-hoc sign, and (optionally) install murmr as a macOS .app bundle.
+#
+# Usage:
+#   ./scripts/bundle-macos.sh            # build + sign
+#   ./scripts/bundle-macos.sh --install  # also install to /Applications and launch
+#
+# Note on permissions: this is an ad-hoc-signed local build. macOS ties TCC
+# grants (Input Monitoring, Accessibility, Microphone) to the code signature,
+# which changes on each build, so a rebuild can drop those grants. If the hotkey
+# stops working after a rebuild, reset and re-grant:
+#   tccutil reset Accessibility com.arvmaan.murmer
+#   tccutil reset ListenEvent   com.arvmaan.murmer
+#   tccutil reset Microphone    com.arvmaan.murmer
+# Proper persistence needs a Developer ID certificate (paid Apple account).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-APP_NAME="murmer"
-BUNDLE_DIR="$PROJECT_DIR/target/bundle"
-APP_DIR="$BUNDLE_DIR/$APP_NAME.app"
+APP="$PROJECT_DIR/target/release/bundle/macos/murmer.app"
 
-# Determine build profile
-if [[ "${1:-}" == "--release" ]]; then
-    PROFILE="release"
-    cargo build --release
-    BINARY="$PROJECT_DIR/target/release/$APP_NAME"
-else
-    PROFILE="debug"
-    cargo build
-    BINARY="$PROJECT_DIR/target/debug/$APP_NAME"
+echo "Building murmr.app…"
+( cd "$PROJECT_DIR" && cargo tauri build --features bedrock )
+
+echo "Ad-hoc signing…"
+codesign --force --deep --sign - "$APP"
+
+echo ""
+echo "Built: $APP"
+echo "DMG:   $PROJECT_DIR/target/release/bundle/dmg/"
+
+if [[ "${1:-}" == "--install" ]]; then
+    echo "Installing to /Applications…"
+    pkill -f "murmer-app" 2>/dev/null || true
+    rm -rf /Applications/murmer.app
+    cp -R "$APP" /Applications/
+    open /Applications/murmer.app
+    echo "Installed and launched."
 fi
-
-echo "Building $APP_NAME.app ($PROFILE)..."
-
-# Create .app bundle structure
-rm -rf "$APP_DIR"
-mkdir -p "$APP_DIR/Contents/MacOS"
-mkdir -p "$APP_DIR/Contents/Resources"
-
-# Copy binary
-cp "$BINARY" "$APP_DIR/Contents/MacOS/$APP_NAME"
-
-# Copy Info.plist
-cp "$PROJECT_DIR/macos/Info.plist" "$APP_DIR/Contents/"
-
-# Create a minimal icon if none exists
-if [[ -f "$PROJECT_DIR/icons/icon.icns" ]]; then
-    cp "$PROJECT_DIR/icons/icon.icns" "$APP_DIR/Contents/Resources/icon.icns"
-fi
-
-echo ""
-echo "Created: $APP_DIR"
-echo ""
-echo "To install:"
-echo "  cp -r $APP_DIR /Applications/"
-echo ""
-echo "On first run, macOS will prompt for:"
-echo "  - Microphone access"
-echo "  - Accessibility (for global hotkeys)"
-echo "  - Input Monitoring (for keyboard simulation)"
-echo ""
-echo "Grant all three in System Settings → Privacy & Security"
