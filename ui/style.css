@@ -196,6 +196,30 @@ main::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 
 .panel.active { display: block; animation: panel-in 0.32s ease both; }
 @keyframes panel-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
+/* first-run onboarding banner */
+.onboarding {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  border: 1px solid rgba(254, 228, 64, 0.28);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.onboarding-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.onboarding ol { margin: 8px 0 8px 18px; display: flex; flex-direction: column; gap: 3px; }
+.onboarding b { color: var(--text); }
+.onboarding-actions { display: flex; gap: 8px; margin-top: 10px; }
+.onboarding-hint { margin-top: 10px; color: var(--text-faint); }
+
 .panel-header {
   display: flex;
   justify-content: space-between;

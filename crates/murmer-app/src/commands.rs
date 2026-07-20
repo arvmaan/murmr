@@ -123,6 +123,18 @@ pub fn get_builtin_mode_names() -> Vec<String> {
     murmer_core::modes::registry::builtin_names()
 }
 
+/// Open the macOS Privacy & Security settings (Input Monitoring pane) so the
+/// user can grant the permissions murmr needs. No-op on other platforms.
+#[tauri::command]
+pub fn open_privacy_settings() {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+            .spawn();
+    }
+}
+
 /// Add or overwrite a user mode, then persist config to disk.
 #[tauri::command]
 pub async fn add_mode(

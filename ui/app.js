@@ -20,6 +20,14 @@ async function init() {
   await loadDictionary();
   await loadModes();
   setupListeners();
+  maybeShowOnboarding();
+}
+
+// Show the first-run permissions banner until the user dismisses it.
+function maybeShowOnboarding() {
+  if (localStorage.getItem('onboarding-dismissed') === '1') return;
+  const el = document.getElementById('onboarding');
+  if (el) el.hidden = false;
 }
 
 // The last config loaded from the backend. Save merges the form's fields into
@@ -336,6 +344,19 @@ function setupListeners() {
     } catch (e) {
       alert('Add mode failed: ' + e);
     }
+  });
+
+  // Onboarding banner
+  document.getElementById('onboarding-dismiss').addEventListener('click', () => {
+    localStorage.setItem('onboarding-dismissed', '1');
+    document.getElementById('onboarding').hidden = true;
+  });
+  document.getElementById('open-privacy').addEventListener('click', () => {
+    invoke('open_privacy_settings');
+  });
+  document.getElementById('goto-check').addEventListener('click', async () => {
+    document.querySelector('[data-tab=settings]').click();
+    document.getElementById('check-btn').click();
   });
 
   // System check

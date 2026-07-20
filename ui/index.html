@@ -19,6 +19,24 @@
 
   <main>
     <section id="transcripts" class="panel active">
+      <div id="onboarding" class="onboarding" hidden>
+        <div class="onboarding-head">
+          <span>Welcome to murmr 👋</span>
+          <button id="onboarding-dismiss" class="icon-btn" title="Dismiss">✕</button>
+        </div>
+        <p>To dictate anywhere, murmr needs three macOS permissions. Grant them,
+           then relaunch murmr:</p>
+        <ol>
+          <li><b>Input Monitoring</b> — detect your hotkey</li>
+          <li><b>Accessibility</b> — paste at your cursor</li>
+          <li><b>Microphone</b> — record (prompted on first use)</li>
+        </ol>
+        <div class="onboarding-actions">
+          <button id="open-privacy" class="btn-small">Open Privacy Settings</button>
+          <button id="goto-check" class="btn-small">Check readiness</button>
+        </div>
+        <p class="onboarding-hint">Then hold <b>⌘⇧K</b>, speak, and release.</p>
+      </div>
       <div class="panel-header">
         <span>Recent transcriptions</span>
         <button id="clear-btn" class="btn-small">Clear all</button>

@@ -294,6 +294,7 @@ fn main() {
             commands::get_builtin_mode_names,
             commands::add_mode,
             commands::remove_mode,
+            commands::open_privacy_settings,
             commands::check_system,
         ])
         .build(tauri::generate_context!())
