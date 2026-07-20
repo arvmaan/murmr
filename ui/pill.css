@@ -9,9 +9,8 @@
 :root {
   --accent:        #fee440;
   --accent-bright: #fff06b;
-  --success:       #56d18b;
+  --danger:        #f0684f;
   --text:          #f6f1ea;
-  --text-muted:    #b3a89b;
 }
 
 html, body {
@@ -144,3 +143,10 @@ body {
 .pill.state-processing .timer { display: none; }
 .pill.state-processing .spinner { display: block; }
 .pill.state-processing .label { display: inline; }
+
+/* error: red dot + message, no wave/timer/spinner */
+.pill.state-error .dot { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+.pill.state-error .wave,
+.pill.state-error .timer,
+.pill.state-error .spinner { display: none; }
+.pill.state-error .label { display: inline; }

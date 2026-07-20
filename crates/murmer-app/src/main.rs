@@ -124,6 +124,25 @@ fn hide_pill(app: &AppHandle) {
     });
 }
 
+/// Show a brief error in the pill (e.g. "no speech detected", Bedrock failure),
+/// then auto-hide it after a couple of seconds so it doesn't linger.
+fn pill_error(app: &AppHandle, message: &str) {
+    let msg = message.to_string();
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Some(win) = handle.get_webview_window("pill") {
+            let _ = win.show();
+            let _ = win.emit("pill:error", msg);
+        }
+    });
+    // Auto-hide after the message has been readable for a moment.
+    let handle2 = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+        hide_pill(&handle2);
+    });
+}
+
 /// Toggle the pill — used by the tray for manual testing until the audio
 /// capture pipeline drives it automatically.
 fn toggle_pill(app: &AppHandle) {
@@ -236,8 +255,10 @@ fn main() {
                 hide_pill(&h_done);
             });
             let h_err = app.handle().clone();
-            app.listen_any("processing-error", move |_| {
-                hide_pill(&h_err);
+            app.listen_any("processing-error", move |event| {
+                // Show the error briefly in the pill, then auto-hide.
+                let msg = event.payload().trim_matches('"').to_string();
+                pill_error(&h_err, &msg);
             });
 
             // Show the window on first launch so opening murmr from Finder /

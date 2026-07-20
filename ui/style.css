@@ -125,6 +125,8 @@ header h1 {
 .status.processing { color: var(--success); }
 .status.processing::after { content: "Processing"; }
 .status.processing::before { animation: pulse-glow 0.9s ease-in-out infinite; }
+.status.error { color: var(--danger); }
+.status.error::after { content: "Error"; }
 
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }

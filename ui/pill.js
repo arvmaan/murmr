@@ -38,6 +38,14 @@ function startProcessing() {
   cancelAnimationFrame(rafId);
 }
 
+const labelEl = document.getElementById('label');
+function showError(msg) {
+  processing = true; // keep visibility handler from resetting to recording
+  cancelAnimationFrame(rafId);
+  pill.className = 'pill state-error';
+  if (labelEl) labelEl.textContent = msg || 'Something went wrong';
+}
+
 // Wire to Tauri events if present (absent when previewed in a plain browser).
 // The backend emits pill-specific events (pill:record / pill:process) so the
 // pill's own state changes can never feed back into the recording lifecycle.
@@ -45,6 +53,7 @@ if (window.__TAURI__ && window.__TAURI__.event) {
   const { listen } = window.__TAURI__.event;
   listen('pill:record', startRecording);
   listen('pill:process', startProcessing);
+  listen('pill:error', (e) => showError(e.payload));
 
   // The pill window is persistent (shown/hidden by the backend, never
   // recreated), so we must NOT start the clock at load — that would count from

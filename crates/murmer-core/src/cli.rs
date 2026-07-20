@@ -1,4 +1,4 @@
-use murmer_core::{audio, config, input, llm, modes, stt, tray};
+use murmer_core::{audio, config, input, llm, stt, tray};
 
 use anyhow::Result;
 use clap::Parser;

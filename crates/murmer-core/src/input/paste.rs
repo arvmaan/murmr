@@ -149,20 +149,44 @@ fn paste_macos(text: &str) -> Result<()> {
         anyhow::bail!("pbcopy exited with status {}", status);
     }
 
-    // Simulate Cmd+V via osascript
-    let status = Command::new("osascript")
-        .args([
-            "-e",
-            "tell application \"System Events\" to keystroke \"v\" using command down",
-        ])
-        .status()
-        .context("failed to run osascript for Cmd+V")?;
+    // Give the clipboard a moment to settle and the target app to be frontmost
+    // before we synthesize the paste keystroke. Without this, fast apps
+    // occasionally paste stale content or drop the event.
+    std::thread::sleep(std::time::Duration::from_millis(120));
 
-    if !status.success() {
-        anyhow::bail!("osascript paste exited with status {}", status);
+    // Simulate Cmd+V via osascript, retrying once — the first synthetic
+    // keystroke can be dropped if focus is still settling after release.
+    let mut last_err = String::new();
+    for attempt in 0..2 {
+        let output = Command::new("osascript")
+            .args([
+                "-e",
+                "tell application \"System Events\" to keystroke \"v\" using command down",
+            ])
+            .output()
+            .context("failed to run osascript for Cmd+V")?;
+
+        if output.status.success() {
+            return Ok(());
+        }
+
+        last_err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        tracing::warn!(
+            "osascript paste attempt {} failed: {}",
+            attempt + 1,
+            last_err
+        );
+        std::thread::sleep(std::time::Duration::from_millis(150));
     }
 
-    Ok(())
+    anyhow::bail!(
+        "osascript paste failed after retry: {}. Grant murmr Accessibility permission.",
+        if last_err.is_empty() {
+            "unknown error".to_string()
+        } else {
+            last_err
+        }
+    )
 }
 
 /// Check if a command exists on PATH.

@@ -317,8 +317,12 @@ function setupListeners() {
     await loadTranscripts();
   });
   listen('processing-error', (event) => {
-    document.getElementById('status').className = 'status idle';
+    // The pill shows the error at the cursor; here we just blip the status dot
+    // and return to idle. No separate toast — keep the surface minimal.
+    const status = document.getElementById('status');
+    status.className = 'status error';
     console.error('processing error:', event.payload);
+    setTimeout(() => { status.className = 'status idle'; }, 2500);
   });
 }
 
