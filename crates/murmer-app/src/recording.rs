@@ -176,11 +176,18 @@ async fn event_loop(
                 }
 
                 // Process off the event loop so the next hotkey stays responsive.
+                // A hard timeout guarantees the pill always resolves (done/error)
+                // even if transcription or the LLM hangs.
                 let app2 = app.clone();
                 let state2 = state.clone();
                 let cmd = is_command;
                 tokio::spawn(async move {
-                    if let Err(e) = process(&app2, &state2, cmd, samples).await {
+                    let timeout = std::time::Duration::from_secs(45);
+                    let result =
+                        tokio::time::timeout(timeout, process(&app2, &state2, cmd, samples))
+                            .await
+                            .unwrap_or_else(|_| Err(anyhow::anyhow!("timed out after 45s")));
+                    if let Err(e) = result {
                         tracing::error!("processing failed: {}", e);
                         let _ = app2.emit("processing-error", e.to_string());
                     }

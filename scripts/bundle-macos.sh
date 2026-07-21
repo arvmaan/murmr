@@ -35,12 +35,8 @@ if [[ "${1:-}" == "--install" ]]; then
     pkill -f "murmer-app" 2>/dev/null || true
     rm -rf /Applications/murmer.app
     cp -R "$APP" /Applications/
-    # The ad-hoc signature changed, so stale TCC entries for the old build no
-    # longer match and silently deny. Reset them so macOS re-prompts cleanly.
-    tccutil reset Accessibility com.arvmaan.murmer >/dev/null 2>&1 || true
-    tccutil reset ListenEvent   com.arvmaan.murmer >/dev/null 2>&1 || true
-    tccutil reset Microphone    com.arvmaan.murmer >/dev/null 2>&1 || true
     open /Applications/murmer.app
     echo "Installed and launched."
-    echo "Re-grant Input Monitoring + Accessibility for murmr, then relaunch."
+    echo "If the hotkey or paste stops working after a rebuild, re-grant Input"
+    echo "Monitoring + Accessibility (macOS may drop them when the build changes)."
 fi
