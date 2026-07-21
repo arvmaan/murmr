@@ -280,6 +280,9 @@ async fn process(
     // Preview mode: don't paste yet — stash the text and show it in the pill,
     // awaiting the user's confirmation (next hotkey press). See the event loop.
     if config.paste.preview_before_paste {
+        // Put it on the clipboard now so the user can ⌘V manually even before
+        // (or instead of) confirming with the hotkey.
+        let _ = input::paste::copy_to_clipboard(&final_text);
         *state.pending_paste.lock().await = Some(final_text.clone());
         let _ = app.emit("preview-ready", final_text);
 

@@ -130,32 +130,54 @@ fn paste_xdotool(text: &str) -> Result<()> {
     Ok(())
 }
 
-fn paste_macos(text: &str) -> Result<()> {
-    // Copy to clipboard via pbcopy
+/// Error signalling the text reached the clipboard but the automatic ⌘V
+/// keystroke was blocked (typically missing Accessibility permission). The
+/// caller can treat this as a soft failure: the user can paste manually.
+#[derive(Debug)]
+pub struct PasteCopiedNotSent(pub String);
+
+impl std::fmt::Display for PasteCopiedNotSent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Copied to clipboard — press ⌘V to paste. (Auto-paste needs \
+             Accessibility permission: {})",
+            self.0
+        )
+    }
+}
+impl std::error::Error for PasteCopiedNotSent {}
+
+/// Put text on the macOS clipboard. Requires no special permission.
+pub fn copy_to_clipboard(text: &str) -> Result<()> {
     let mut child = Command::new("pbcopy")
         .stdin(std::process::Stdio::piped())
         .spawn()
         .context("failed to run pbcopy")?;
-
     if let Some(ref mut stdin) = child.stdin {
         use std::io::Write;
         stdin
             .write_all(text.as_bytes())
             .context("failed to write to pbcopy stdin")?;
     }
-
     let status = child.wait().context("failed to wait for pbcopy")?;
     if !status.success() {
         anyhow::bail!("pbcopy exited with status {}", status);
     }
+    Ok(())
+}
 
-    // Give the clipboard a moment to settle and the target app to be frontmost
-    // before we synthesize the paste keystroke. Without this, fast apps
-    // occasionally paste stale content or drop the event.
+fn paste_macos(text: &str) -> Result<()> {
+    // 1. Always put the text on the clipboard first — this needs no permission,
+    //    so even if the keystroke below is blocked, the user can paste manually.
+    copy_to_clipboard(text)?;
+
+    // Let the clipboard settle and the target app become frontmost before the
+    // synthetic keystroke, or fast apps occasionally drop/mis-paste it.
     std::thread::sleep(std::time::Duration::from_millis(120));
 
-    // Simulate Cmd+V via osascript, retrying once — the first synthetic
-    // keystroke can be dropped if focus is still settling after release.
+    // 2. Try to send ⌘V, retrying once. If it fails (e.g. no Accessibility),
+    //    return a soft error — the text is already on the clipboard.
     let mut last_err = String::new();
     for attempt in 0..2 {
         let output = Command::new("osascript")
@@ -179,14 +201,12 @@ fn paste_macos(text: &str) -> Result<()> {
         std::thread::sleep(std::time::Duration::from_millis(150));
     }
 
-    anyhow::bail!(
-        "osascript paste failed after retry: {}. Grant murmr Accessibility permission.",
-        if last_err.is_empty() {
-            "unknown error".to_string()
-        } else {
-            last_err
-        }
-    )
+    Err(PasteCopiedNotSent(if last_err.is_empty() {
+        "unknown error".to_string()
+    } else {
+        last_err
+    })
+    .into())
 }
 
 /// Check if a command exists on PATH.
