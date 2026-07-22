@@ -170,7 +170,7 @@ fn find_expansion_in_text(term: &str, text: &str) -> Option<String> {
 }
 
 /// Check if `candidate` is a plausible expansion of `acronym`.
-/// E.g., "MP" expands to "MetricsProcessor" (first letters match).
+/// E.g., "MP" expands to "MessageProcessor" (first letters match).
 fn is_expansion_of(acronym: &str, candidate: &str) -> bool {
     if candidate.len() < acronym.len() * 2 {
         return false;
@@ -254,30 +254,30 @@ mod tests {
 
     #[test]
     fn test_is_expansion_of() {
-        assert!(is_expansion_of("MP", "MetricsProcessor"));
-        assert!(is_expansion_of("mp", "MetricsProcessor"));
-        assert!(is_expansion_of("LPCP", "LogProcessingControlPlane"));
-        assert!(is_expansion_of("CW", "CloudWatch"));
+        assert!(is_expansion_of("MP", "MessageProcessor"));
+        assert!(is_expansion_of("mp", "MessageProcessor"));
+        assert!(is_expansion_of("LPCP", "LocalProxyConfigParser"));
+        assert!(is_expansion_of("CW", "ConfigWatcher"));
         assert!(!is_expansion_of("MP", "Logger"));
         assert!(!is_expansion_of("MP", "M")); // too short
     }
 
     #[test]
     fn test_is_expansion_of_snake_case() {
-        assert!(is_expansion_of("MP", "metrics_processor"));
-        assert!(is_expansion_of("LPCP", "log_processing_control_plane"));
+        assert!(is_expansion_of("MP", "message_processor"));
+        assert!(is_expansion_of("LPCP", "local_proxy_config_parser"));
     }
 
     #[test]
     fn test_split_identifier_camel() {
-        let parts = split_identifier("MetricsProcessor");
-        assert_eq!(parts, vec!["Metrics", "Processor"]);
+        let parts = split_identifier("MessageProcessor");
+        assert_eq!(parts, vec!["Message", "Processor"]);
     }
 
     #[test]
     fn test_split_identifier_snake() {
-        let parts = split_identifier("metrics_processor");
-        assert_eq!(parts, vec!["metrics", "processor"]);
+        let parts = split_identifier("message_processor");
+        assert_eq!(parts, vec!["message", "processor"]);
     }
 
     #[test]
@@ -305,7 +305,7 @@ mod tests {
     #[test]
     fn test_learner_skips_known() {
         let mut entries = HashMap::new();
-        entries.insert("MP".to_string(), "MetricsProcessor".to_string());
+        entries.insert("MP".to_string(), "MessageProcessor".to_string());
         let mut store = DictionaryStore::load(&entries).unwrap();
         let mut learner = DictionaryLearner::new(3);
 
@@ -318,9 +318,9 @@ mod tests {
 
     #[test]
     fn test_find_expansion_in_text() {
-        let text = "fixed MetricsProcessor timeout issue";
+        let text = "fixed MessageProcessor timeout issue";
         let result = find_expansion_in_text("MP", text);
-        assert_eq!(result, Some("MetricsProcessor".to_string()));
+        assert_eq!(result, Some("MessageProcessor".to_string()));
     }
 
     #[test]

@@ -313,21 +313,15 @@ output = "clipboard"
     fn test_parse_dictionary_config() {
         let toml_str = r#"
 [dictionary]
-entries = { "MP" = "MetricsProcessor", "LPCP" = "LogProcessingControlPlane" }
+entries = { "k8s" = "Kubernetes", "pg" = "Postgres" }
 
 [dictionary.learning]
 enabled = true
 suggestion_threshold = 5
 "#;
         let config: Config = toml::from_str(toml_str).unwrap();
-        assert_eq!(
-            config.dictionary.entries.get("MP").unwrap(),
-            "MetricsProcessor"
-        );
-        assert_eq!(
-            config.dictionary.entries.get("LPCP").unwrap(),
-            "LogProcessingControlPlane"
-        );
+        assert_eq!(config.dictionary.entries.get("k8s").unwrap(), "Kubernetes");
+        assert_eq!(config.dictionary.entries.get("pg").unwrap(), "Postgres");
         assert!(config.dictionary.learning.enabled);
         assert_eq!(config.dictionary.learning.suggestion_threshold, 5);
     }

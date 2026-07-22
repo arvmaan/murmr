@@ -2,29 +2,75 @@
 
 **Speak sloppy, prompt sharp.**
 
-A voice dictation tool that turns speech into clean text at your cursor — and turns
-casual speech into rigorous prompts. Hold a hotkey, talk, release. murmr transcribes
-locally with whisper, cleans it up with an LLM, and pastes at your cursor.
+murmr turns a rambled, half-formed thought into a **sharp, structured prompt** you can
+paste straight into a coding agent like Claude. Hold a hotkey, talk, release — murmr
+transcribes locally with whisper and compiles your speech into a well-formed prompt.
 
-Its differentiating feature is **voice-triggered prompt templates**: say
-_"loop this: get the tests passing"_ and murmr compiles your casual speech into a
-long-horizon prompt with a success predicate, non-counting outcomes, and verification
-gates.
+The point is **not** to do the work for you. It's to build the prompt that gets the
+work done well. You stay the driver; murmr just makes your ask precise.
+
+### The core idea: talk → get a prompt, not an answer
+
+Hold the **command** hotkey and mumble a request:
+
+> _"can you help me figure out why the login page is really slow, i think it's the
+> api calls but not sure, dig into it and fix it"_
+
+murmr doesn't try to debug anything. It hands you a prompt, ready to paste into Claude:
+
+```
+TASK: Investigate and fix the performance issues on the login page, with focus on
+API call optimization.
+CONTEXT: The login page is slow; API calls are suspected as the primary bottleneck
+but the root cause needs confirmation.
+CONSTRAINTS: Preserve existing login functionality and security. Don't break the auth
+flow beyond the performance improvements.
+DELIVERABLE: A faster login page with the bottleneck identified and resolved, plus
+before/after measurements.
+```
+
+### Voice-triggered prompt templates
+
+Start your speech with a **trigger phrase** and murmr compiles it into a rigorous,
+purpose-built prompt. For example, say:
+
+> _"loop this: get the integration tests passing"_
+
+and murmr produces a persistence-gated long-horizon brief:
+
+```
+OBJECTIVE: Get the integration tests passing.
+SUCCESS PREDICATE: Every test in the integration suite passes on a clean run. This
+is a property of the finished artifact, not of your confidence in it.
+DOES NOT COUNT:
+- Deleting, skipping, or weakening tests to make the suite green.
+- A pass you cannot reproduce on a fresh run.
+- Fixing some tests while leaving others broken.
+VERIFICATION: Re-run the full suite after each fix. A flaky pass does not count.
+PERSISTENCE: Assume a solution exists. Do not stop because it's hard or slow; stop
+only when the predicate holds under verification.
+RETURN: Return only the passing suite — no partial progress, plans, or excuses.
+```
+
+Built-in modes: **loop** (persistence), **review** (adversarial audit), **spec**
+(specification), **fan** (parallel search), and **command** (general task prompt). Add
+your own in Settings.
 
 ## How it works
 
 ```
-[Hotkey] → Record → whisper STT → LLM (cleanup / mode template / command) → Paste at cursor
+[Hotkey] → Record → whisper STT → LLM (compile to prompt) → Clipboard + paste at cursor
 ```
 
-- **Dictate** (`Super+Shift+K`): speak naturally; murmr strips fillers, fixes
-  punctuation/capitalization, honors self-corrections, and pastes clean text. If your
-  speech starts with a mode trigger, it runs that template instead (see below).
-- **Command** (`Super+Shift+L`): speak an instruction ("translate to Spanish: …",
-  "summarize this", "rewrite more formally") and murmr pastes the transformed result.
+- **Command** (`Super+Shift+L`): speak any task; murmr compiles it into a structured
+  TASK / CONTEXT / CONSTRAINTS / DELIVERABLE prompt. It never does the task itself.
+- **Dictate** (`Super+Shift+K`): plain dictation — strips fillers, fixes
+  punctuation/capitalization, honors self-corrections. If your speech starts with a
+  mode trigger ("loop this", "review this"…), it compiles that template instead.
 
-While recording, a **pill** drops from the top of the screen showing a live waveform
-and timer; it switches to "Transcribing…" while the LLM works.
+While recording, a **pill** drops from the top of the screen with a live waveform and
+timer; it switches to "Transcribing…" while the LLM works, then copies the result to
+your clipboard.
 
 ## Download & install (macOS)
 
@@ -71,16 +117,19 @@ guide and troubleshooting.
 Built-in modes match a trigger phrase at the start of your speech, then compile the
 rest into a rigorous prompt:
 
-| Mode | Triggers | Turns speech into… |
+| Mode | Triggers (start of speech) | Turns speech into… |
 |------|----------|--------------------|
 | **loop** | "loop this", "ralph this", "iterate on" | a persistence-gated brief with a success predicate + verification gate |
 | **review** | "review this", "audit" | an adversarial review brief with a failure-mode checklist |
 | **spec** | "spec this", "specify" | a pseudo-formal specification (definitions, predicate, non-counting outcomes) |
 | **fan** | "fan out", "parallel" | a diverse parallel-search orchestration brief |
-| **command** | "translate", "summarize", "rewrite", "explain" | a direct LLM transformation |
 
-Modes are plain config — you can override the built-ins or add your own in
-`config.toml`.
+The **command** hotkey (`Super+Shift+L`) is the general case — it compiles any spoken
+task into a TASK / CONTEXT / CONSTRAINTS / DELIVERABLE prompt without needing a
+trigger word, and never executes the task.
+
+Modes are plain config — override a built-in or add your own in Settings (or
+`config.toml`).
 
 ## LLM backends
 
@@ -152,7 +201,7 @@ model_path = ""               # defaults to ~/Library/Application Support/murmer
 language = "en"
 
 [dictionary]
-entries = { "MP" = "MetricsProcessor", "LPCP" = "LogProcessingControlPlane" }
+entries = { "k8s" = "Kubernetes", "pg" = "Postgres" }
 ```
 
 ## Design principles

@@ -149,12 +149,12 @@ mod tests {
     #[test]
     fn test_static_entries() {
         let mut entries = HashMap::new();
-        entries.insert("MP".to_string(), "MetricsProcessor".to_string());
-        entries.insert("CW".to_string(), "CloudWatch".to_string());
+        entries.insert("MP".to_string(), "MessageProcessor".to_string());
+        entries.insert("CW".to_string(), "ConfigWatcher".to_string());
 
         let store = DictionaryStore::load(&entries).unwrap();
-        assert_eq!(store.lookup("MP"), Some("MetricsProcessor"));
-        assert_eq!(store.lookup("CW"), Some("CloudWatch"));
+        assert_eq!(store.lookup("MP"), Some("MessageProcessor"));
+        assert_eq!(store.lookup("CW"), Some("ConfigWatcher"));
         assert_eq!(store.lookup("UNKNOWN"), None);
     }
 
@@ -163,11 +163,11 @@ mod tests {
         let mut store = DictionaryStore::load(&HashMap::new()).unwrap();
         store.learn(
             "LPCP".to_string(),
-            "LogProcessingControlPlane".to_string(),
+            "LocalProxyConfigParser".to_string(),
             "git_log".to_string(),
         );
 
-        assert_eq!(store.lookup("LPCP"), Some("LogProcessingControlPlane"));
+        assert_eq!(store.lookup("LPCP"), Some("LocalProxyConfigParser"));
         let entry = store.learned_entries.get("LPCP").unwrap();
         assert_eq!(entry.frequency, 1);
         assert_eq!(entry.source, "git_log");
@@ -178,17 +178,17 @@ mod tests {
         let mut store = DictionaryStore::load(&HashMap::new()).unwrap();
         store.learn(
             "MP".to_string(),
-            "MetricsProcessor".to_string(),
+            "MessageProcessor".to_string(),
             "git".to_string(),
         );
         store.learn(
             "MP".to_string(),
-            "MetricsProcessor".to_string(),
+            "MessageProcessor".to_string(),
             "git".to_string(),
         );
         store.learn(
             "MP".to_string(),
-            "MetricsProcessor".to_string(),
+            "MessageProcessor".to_string(),
             "git".to_string(),
         );
 
@@ -202,7 +202,7 @@ mod tests {
         let mut store = DictionaryStore::load(&HashMap::new()).unwrap();
         store.learn(
             "MP".to_string(),
-            "MetricsProcessor".to_string(),
+            "MessageProcessor".to_string(),
             "git".to_string(),
         );
         store.record_usage("MP");
@@ -228,11 +228,11 @@ mod tests {
     #[test]
     fn test_prompt_injection() {
         let mut entries = HashMap::new();
-        entries.insert("MP".to_string(), "MetricsProcessor".to_string());
+        entries.insert("MP".to_string(), "MessageProcessor".to_string());
         let store = DictionaryStore::load(&entries).unwrap();
 
         let injection = store.prompt_injection().unwrap();
-        assert!(injection.contains("MP = MetricsProcessor"));
+        assert!(injection.contains("MP = MessageProcessor"));
         assert!(injection.contains("abbreviations"));
     }
 
