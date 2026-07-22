@@ -16,7 +16,7 @@ use tracing_subscriber::EnvFilter;
 
 /// Logical size of the recording pill window. Kept a little taller/wider than
 /// the pill itself to leave room for the drop-in animation and soft shadow.
-const PILL_W: f64 = 260.0;
+const PILL_W: f64 = 360.0;
 const PILL_H: f64 = 64.0;
 
 /// Bring the main window forward. On macOS an Accessory-policy app stays
@@ -122,7 +122,7 @@ fn pill_preview(app: &AppHandle, text: &str) {
     let _ = app.run_on_main_thread(move || {
         if let Some(win) = handle.get_webview_window("pill") {
             let _ = win.show();
-            let _ = win.emit("pill:preview", text);
+            let _ = win.emit("pill:preview", &text);
         }
     });
 }

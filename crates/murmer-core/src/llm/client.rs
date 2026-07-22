@@ -365,6 +365,12 @@ impl LlmClient {
             .strip_prefix("bedrock:")
             .unwrap_or("us-east-1");
 
+        // Disable the EC2 instance-metadata (IMDS) credential provider. On a
+        // non-EC2 machine (and especially a GUI app that lacks the shell's AWS_*
+        // env vars) the default provider chain can fall through to IMDS and
+        // hang on metadata lookups. We only ever use file/SSO/env credentials.
+        std::env::set_var("AWS_EC2_METADATA_DISABLED", "true");
+
         let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .region(aws_config::Region::new(region.to_string()))
             .load()

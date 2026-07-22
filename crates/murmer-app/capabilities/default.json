@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Core permissions for the main window and the recording pill: IPC events (Rust↔JS), plus the global-shortcut plugin.",
+  "windows": ["main", "pill"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:event:allow-emit",
+    "core:event:allow-emit-to",
+    "core:window:default",
+    "core:webview:default",
+    "global-shortcut:default"
+  ]
+}

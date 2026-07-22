@@ -51,9 +51,13 @@ function showPreview(text) {
   processing = true;
   cancelAnimationFrame(rafId);
   pill.className = 'pill state-preview';
-  // Show a short prefix of the text plus the confirm hint.
-  const preview = (text || '').replace(/\s+/g, ' ').trim().slice(0, 28);
-  if (labelEl) labelEl.textContent = preview ? `“${preview}…” ⏎` : 'Press hotkey to paste';
+  // The text is already on the clipboard — tell the user to paste it. (Ellipsis
+  // handled by CSS; keep a slightly longer prefix so the pill feels informative.)
+  const clean = (text || '').replace(/\s+/g, ' ').trim();
+  const preview = clean.slice(0, 22);
+  if (labelEl) {
+    labelEl.textContent = clean ? `⌘V  “${preview}${clean.length > 22 ? '…' : ''}”` : '⌘V to paste';
+  }
 }
 
 function showError(msg) {
@@ -74,16 +78,13 @@ if (window.__TAURI__ && window.__TAURI__.event) {
   listen('pill:preview', (e) => showPreview(e.payload));
   listen('pill:error', (e) => showError(e.payload));
 
-  // The pill window is persistent (shown/hidden by the backend, never
-  // recreated), so we must NOT start the clock at load — that would count from
-  // app launch. Instead, reset to zero every time the window actually becomes
-  // visible. This fires exactly when the backend shows the pill to record,
-  // independent of event-delivery timing, guaranteeing the timer starts at 0.
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && !processing) startRecording();
-  });
+  // Every state is driven explicitly by the backend events above (the backend
+  // emits pill:record whenever it shows the pill to record). We deliberately do
+  // NOT reset state on visibilitychange — that raced with pill:process /
+  // pill:preview and could revert the pill to the recording state, hiding the
+  // preview text.
   timerEl.textContent = '0:00';
 } else {
-  // Preview mode: just animate.
+  // No Tauri bridge (e.g. opened in a plain browser for preview): just animate.
   startRecording();
 }

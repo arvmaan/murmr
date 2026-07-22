@@ -40,6 +40,7 @@ body {
   gap: 9px;
   height: 34px;
   padding: 0 15px 0 13px;
+  max-width: 340px;          /* stay inside the 360px window, leave shadow room */
   background: #000;
   /* flat top (0 radius) to fuse with the notch, big rounded bottom */
   border-radius: 0 0 18px 18px;
@@ -124,6 +125,10 @@ body {
   font-size: 12px;
   font-weight: 600;
   color: var(--text);
+  min-width: 0;              /* allow the flex item to shrink */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------------------------

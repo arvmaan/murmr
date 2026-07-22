@@ -110,28 +110,18 @@ async fn event_loop(
 
     let mut is_command = false;
     let mut recording_handle: Option<std::thread::JoinHandle<Vec<f32>>> = None;
-    // After confirming a preview, swallow key events until the key is released,
-    // so auto-repeat presses during the confirming hold don't start a recording.
-    let mut swallow_until_release = false;
 
     while let Some(event) = rx.recv().await {
         let recording = state.recording.load(Ordering::Relaxed);
-        // Holding a key auto-repeats the Press event ~12x/sec; only the state
-        // transitions below are logged, not every repeat.
+        // Holding a key auto-repeats the Press event ~12x/sec; the `if !recording`
+        // guard drops repeats — only real state transitions act below.
         match event {
-            E::DictateReleased | E::CommandReleased if swallow_until_release => {
-                swallow_until_release = false;
-            }
-            E::DictatePressed | E::CommandPressed if swallow_until_release => {}
-            // Preview mode: a press while text is awaiting confirmation pastes
-            // that text instead of starting a new recording.
-            E::DictatePressed | E::CommandPressed
-                if !recording && state.pending_paste.lock().await.is_some() =>
-            {
-                swallow_until_release = true;
-                confirm_pending_paste(&app, &state).await;
-            }
             E::DictatePressed | E::CommandPressed if !recording => {
+                // Preview mode: the text is already on the clipboard, so a new
+                // press just discards the lingering preview and records again.
+                // (We don't auto-paste on confirm — that needs Accessibility;
+                // the user pastes with ⌘V.) recording-started re-shows the pill.
+                state.pending_paste.lock().await.take();
                 is_command = matches!(event, E::CommandPressed);
                 state.recording.store(true, Ordering::Relaxed);
                 tracing::info!(
@@ -299,7 +289,7 @@ async fn process(
         return Ok(());
     }
 
-    paste_now(app, &config, &final_text).await?;
+    paste_now(&config, &final_text).await?;
     let _ = app.emit("processing-done", ());
     tracing::info!("processing complete");
     Ok(())
@@ -307,30 +297,12 @@ async fn process(
 
 /// Paste text at the cursor. A failure is surfaced but never discards history —
 /// the text is already saved and on the clipboard.
-async fn paste_now(app: &AppHandle, config: &config::Config, text: &str) -> anyhow::Result<()> {
+async fn paste_now(config: &config::Config, text: &str) -> anyhow::Result<()> {
     let paste_method = input::paste::PasteMethod::from_str(&config.paste.method);
     let to_paste = text.to_string();
-    let _ = app;
     tokio::task::spawn_blocking(move || input::paste::paste_text(&to_paste, &paste_method))
         .await?
         .map_err(|e| anyhow::anyhow!("Transcribed & copied, but paste failed: {}", e))
-}
-
-/// Confirm a pending preview: paste the stashed text and clear the pending slot.
-async fn confirm_pending_paste(app: &AppHandle, state: &Arc<AppState>) {
-    let Some(text) = state.pending_paste.lock().await.take() else {
-        return;
-    };
-    let config = state.config.lock().await.clone();
-    match paste_now(app, &config, &text).await {
-        Ok(()) => {
-            let _ = app.emit("processing-done", ());
-        }
-        Err(e) => {
-            tracing::error!("paste failed: {}", e);
-            let _ = app.emit("processing-error", e.to_string());
-        }
-    }
 }
 
 /// Filter samples through Silero VAD when the model is present; otherwise pass

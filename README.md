@@ -26,6 +26,46 @@ gates.
 While recording, a **pill** drops from the top of the screen showing a live waveform
 and timer; it switches to "Transcribing…" while the LLM works.
 
+## Download & install (macOS)
+
+There's no notarized release yet, so you build the app locally (one command) and
+grant it two permissions. Takes about five minutes.
+
+```bash
+# 1. Prerequisites (one-time)
+#    - Rust:        https://rustup.rs
+#    - Tauri CLI:   cargo install tauri-cli --version "^2"
+
+# 2. Clone and download a whisper model (~150 MB for base.en)
+git clone https://github.com/arvmaan/murmr.git && cd murmr
+cargo run -p murmer-core --bin murmer --features bedrock -- --download-model base.en
+
+# 3. Create your config at ~/.config/murmer/config.toml (see Configuration below)
+
+# 4. Build, sign, and install the app to /Applications
+./scripts/bundle-macos.sh --install
+```
+
+### Grant permissions (required, one-time)
+
+murmr is a menu-bar app. On first launch it shows a welcome banner listing the two
+permissions it needs — grant them in **System Settings → Privacy & Security**, then
+**quit and relaunch murmr** (macOS only reads these at launch):
+
+| Permission | Why |
+|------------|-----|
+| **Input Monitoring** | detect the global hotkey |
+| **Accessibility** | auto-paste at your cursor (optional — see note) |
+| **Microphone** | record your voice (prompted automatically) |
+
+> **Note on auto-paste:** because this is a locally-signed build, macOS may not honor
+> Accessibility for the synthetic ⌘V after a rebuild. That's fine — murmr always
+> copies the transcript to your **clipboard**, so you can just press **⌘V** wherever
+> you want it. Auto-paste is a convenience, not a requirement.
+
+Then hold **⌘⇧K**, speak, and release. See [INSTALL.md](INSTALL.md) for the full
+guide and troubleshooting.
+
 ## Voice template modes
 
 Built-in modes match a trigger phrase at the start of your speech, then compile the
