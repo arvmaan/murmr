@@ -123,6 +123,38 @@ pub fn get_builtin_mode_names() -> Vec<String> {
     murmer_core::modes::registry::builtin_names()
 }
 
+/// Re-scan the configured codebase for identifiers, persist the vocabulary,
+/// and refresh the cached prompt injection. Returns a short status string.
+#[tauri::command]
+pub async fn reindex_codebase(state: State<'_, Arc<AppState>>) -> Result<String, String> {
+    use murmer_core::dictionary::vocabulary::Vocabulary;
+
+    let path = {
+        let config = state.config.lock().await;
+        config.dictionary.codebase_path.clone()
+    };
+    let Some(path) = path.filter(|p| !p.trim().is_empty()) else {
+        return Err("No codebase path set. Add one in Settings first.".into());
+    };
+    if !std::path::Path::new(&path).is_dir() {
+        return Err(format!("Not a directory: {}", path));
+    }
+
+    // Scan off the async runtime — it's I/O + CPU heavy.
+    let scan_path = path.clone();
+    let vocab =
+        tokio::task::spawn_blocking(move || Vocabulary::build(std::path::Path::new(&scan_path)))
+            .await
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+
+    vocab.save().map_err(|e| e.to_string())?;
+    let count = vocab.terms.len();
+    *state.vocab_injection.lock().await = vocab.prompt_injection();
+
+    Ok(format!("Indexed {} identifiers from {}", count, path))
+}
+
 /// Open the macOS Privacy & Security settings (Input Monitoring pane) so the
 /// user can grant the permissions murmr needs. No-op on other platforms.
 #[tauri::command]

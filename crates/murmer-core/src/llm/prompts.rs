@@ -1,11 +1,23 @@
 use super::client::Message;
 
-pub fn cleanup_messages(raw_text: &str, custom_system_prompt: Option<&str>) -> Vec<Message> {
-    let system = custom_system_prompt.unwrap_or(DEFAULT_CLEANUP_PROMPT);
+/// Build the cleanup messages. `extra_context` holds optional, already-bounded
+/// injections (dictionary abbreviations, codebase vocabulary) appended to the
+/// system prompt so whisper output is corrected to the speaker's real terms.
+pub fn cleanup_messages(
+    raw_text: &str,
+    custom_system_prompt: Option<&str>,
+    extra_context: &[String],
+) -> Vec<Message> {
+    let base = custom_system_prompt.unwrap_or(DEFAULT_CLEANUP_PROMPT);
+    let system = if extra_context.is_empty() {
+        base.to_string()
+    } else {
+        format!("{}\n\n{}", base, extra_context.join("\n\n"))
+    };
     vec![
         Message {
             role: "system".to_string(),
-            content: system.to_string(),
+            content: system,
         },
         Message {
             role: "user".to_string(),
@@ -122,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_cleanup_messages_structure() {
-        let msgs = cleanup_messages("um hello world", None);
+        let msgs = cleanup_messages("um hello world", None, &[]);
         assert_eq!(msgs.len(), 2);
         assert_eq!(msgs[0].role, "system");
         assert_eq!(msgs[1].role, "user");
@@ -132,8 +144,16 @@ mod tests {
     #[test]
     fn test_custom_system_prompt() {
         let custom = "Just fix punctuation.";
-        let msgs = cleanup_messages("hello", Some(custom));
+        let msgs = cleanup_messages("hello", Some(custom), &[]);
         assert_eq!(msgs[0].content, custom);
+    }
+
+    #[test]
+    fn test_extra_context_appended() {
+        let extra = vec!["Known terms: IngestedBytes".to_string()];
+        let msgs = cleanup_messages("hello", Some("base prompt"), &extra);
+        assert!(msgs[0].content.contains("base prompt"));
+        assert!(msgs[0].content.contains("IngestedBytes"));
     }
 
     #[test]

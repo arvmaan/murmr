@@ -131,6 +131,20 @@ trigger word, and never executes the task.
 Modes are plain config — override a built-in or add your own in Settings (or
 `config.toml`).
 
+## Codebase awareness
+
+Point murmr at your repo (Settings → Codebase awareness → set the path → Re-index)
+and it scans your source for identifiers — `IngestedBytes`, `parseConfig`,
+`DictionaryStore` — ranked by frequency. The top terms are injected into the cleanup
+prompt so speech-to-text output is corrected to your project's real symbols:
+
+> you say _"the ingested bytes counter"_ → murmr writes **"the `IngestedBytes` counter"**
+
+It also **learns over time**: recurring terms from your dictations are picked up and
+remembered automatically. Both paths stay off the hot path — indexing happens on
+demand, and only a bounded slice of the vocabulary is injected, so dictation stays
+fast.
+
 ## LLM backends
 
 murmr auto-detects the protocol from your config. Supported:

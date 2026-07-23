@@ -407,6 +407,12 @@ select {
 }
 .provider-hint:empty { display: none; }
 
+.reindex-status {
+  align-self: center;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
 /* --------------------------------------------------------------------------
    buttons
    -------------------------------------------------------------------------- */

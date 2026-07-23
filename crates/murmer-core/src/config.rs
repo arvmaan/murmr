@@ -90,6 +90,11 @@ pub struct DictionaryConfig {
     pub entries: HashMap<String, String>,
     #[serde(default)]
     pub learning: DictionaryLearningConfig,
+    /// Optional path to a code repository. When set, murmr indexes its
+    /// identifiers so whisper output is corrected to real project symbols
+    /// (e.g. "Ingested Bytes" → "IngestedBytes").
+    #[serde(default)]
+    pub codebase_path: Option<String>,
 }
 
 /// Settings for the dictionary learning feature.

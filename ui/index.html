@@ -87,6 +87,16 @@
       </div>
 
       <div class="settings-group">
+        <h3>Codebase awareness</h3>
+        <label>Repo path <input type="text" id="codebase-path" placeholder="/path/to/your/project"></label>
+        <p class="provider-hint">murmr indexes your project's identifiers so speech is corrected to real symbols (e.g. "ingested bytes" → "IngestedBytes"). Save the path, then re-index.</p>
+        <div class="dict-add">
+          <button id="reindex-btn" class="btn-small">Re-index codebase</button>
+          <span id="reindex-status" class="reindex-status"></span>
+        </div>
+      </div>
+
+      <div class="settings-group">
         <h3>Modes</h3>
         <div id="modes-list" class="modes-list"></div>
         <div class="mode-add">

@@ -260,7 +260,7 @@ async fn process_samples(
             .cleanup_prompt
             .as_ref()
             .map(|p| p.system.as_str());
-        let messages = llm::prompts::cleanup_messages(&raw_text, custom_prompt);
+        let messages = llm::prompts::cleanup_messages(&raw_text, custom_prompt, &[]);
         ollama.chat(&config.llm.cleanup_model, messages).await?
     };
 

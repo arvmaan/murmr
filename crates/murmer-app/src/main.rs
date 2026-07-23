@@ -338,6 +338,7 @@ fn main() {
             commands::add_mode,
             commands::remove_mode,
             commands::open_privacy_settings,
+            commands::reindex_codebase,
             commands::check_system,
         ])
         .build(tauri::generate_context!())

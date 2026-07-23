@@ -1,4 +1,5 @@
 use murmer_core::config::Config;
+use murmer_core::dictionary::learner::DictionaryLearner;
 use murmer_core::dictionary::store::DictionaryStore;
 use murmer_core::input::hotkey::HotkeyEvent;
 use murmer_core::llm::client::LlmClient;
@@ -33,6 +34,11 @@ pub struct AppState {
     /// In preview-before-paste mode, holds the transcribed text awaiting the
     /// user's confirmation. The next hotkey press pastes it instead of recording.
     pub pending_paste: Mutex<Option<String>>,
+    /// Cached codebase-vocabulary prompt injection, computed once at startup /
+    /// after a re-index so it never re-reads the vocab file on the hot path.
+    pub vocab_injection: Mutex<Option<String>>,
+    /// Adaptive learner that picks up recurring terms from dictations over time.
+    pub learner: Mutex<DictionaryLearner>,
 }
 
 impl AppState {
@@ -55,6 +61,11 @@ impl AppState {
         let dictionary = DictionaryStore::load(&config.dictionary.entries)
             .unwrap_or_else(|_| DictionaryStore::load(&std::collections::HashMap::new()).unwrap());
 
+        // Load the persisted codebase vocabulary once and cache its injection.
+        let vocab_injection =
+            murmer_core::dictionary::vocabulary::Vocabulary::load().prompt_injection();
+        let learner = DictionaryLearner::new(config.dictionary.learning.suggestion_threshold);
+
         Self {
             config: Mutex::new(config),
             client: Mutex::new(client),
@@ -64,6 +75,8 @@ impl AppState {
             record_stop: Mutex::new(None),
             hotkey_tx: OnceLock::new(),
             pending_paste: Mutex::new(None),
+            vocab_injection: Mutex::new(vocab_injection),
+            learner: Mutex::new(learner),
         }
     }
 }

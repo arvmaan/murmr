@@ -244,7 +244,16 @@ async fn process(
                     .cleanup_prompt
                     .as_ref()
                     .map(|p| p.system.as_str());
-                let messages = llm::prompts::cleanup_messages(&raw_text, custom);
+                // Bounded context so whisper output is corrected to the
+                // speaker's terms: dictionary abbreviations + codebase vocab.
+                let mut extra: Vec<String> = Vec::new();
+                if let Some(dict) = state.dictionary.lock().await.prompt_injection() {
+                    extra.push(dict);
+                }
+                if let Some(vocab) = state.vocab_injection.lock().await.clone() {
+                    extra.push(vocab);
+                }
+                let messages = llm::prompts::cleanup_messages(&raw_text, custom, &extra);
                 let out = client.chat(&config.llm.cleanup_model, messages).await?;
                 (out, None)
             }
@@ -266,6 +275,24 @@ async fn process(
         crate::transcripts::save(&list);
     }
     let _ = app.emit("transcript-added", entry);
+
+    // Learn recurring terms from this dictation, off the hot path. Runs on the
+    // cleaned text (real identifiers) and only when learning is enabled.
+    if config.dictionary.learning.enabled {
+        let state_l = state.clone();
+        let learned_text = final_text.clone();
+        tokio::spawn(async move {
+            let mut learner = state_l.learner.lock().await;
+            let mut store = state_l.dictionary.lock().await;
+            match learner.process_transcription(&learned_text, &mut store) {
+                Ok(terms) if !terms.is_empty() => {
+                    tracing::info!("dictionary learned: {:?}", terms)
+                }
+                Err(e) => tracing::debug!("learner error: {}", e),
+                _ => {}
+            }
+        });
+    }
 
     // Preview mode: don't paste yet — stash the text and show it in the pill,
     // awaiting the user's confirmation (next hotkey press). See the event loop.

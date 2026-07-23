@@ -50,6 +50,7 @@ async function loadConfig() {
     document.getElementById('hotkey-dictate').value = config.hotkeys.dictate || '';
     document.getElementById('hotkey-command').value = config.hotkeys.command || '';
     document.getElementById('preview-before-paste').checked = !!(config.paste && config.paste.preview_before_paste);
+    document.getElementById('codebase-path').value = (config.dictionary && config.dictionary.codebase_path) || '';
     // Mark the loaded protocol as active so applyProtocolFields keeps the saved
     // models instead of resetting them to defaults.
     activeProtocol = proto;
@@ -272,39 +273,48 @@ async function loadModes() {
   }
 }
 
+// Merge the form's fields into the loaded config and persist. We never rebuild
+// the whole config from scratch, so settings the form doesn't expose (modes,
+// stt.model_path, dictionary learning, etc.) are preserved.
+async function saveConfig() {
+  const base = currentConfig || {};
+  const config = {
+    ...base,
+    llm: {
+      ...(base.llm || {}),
+      protocol: document.getElementById('llm-protocol').value || null,
+      endpoint: document.getElementById('llm-endpoint').value,
+      api_key: document.getElementById('llm-apikey').value || null,
+      region: document.getElementById('llm-region').value || null,
+      cleanup_model: document.getElementById('llm-cleanup-model').value,
+      command_model: document.getElementById('llm-command-model').value,
+    },
+    hotkeys: {
+      ...(base.hotkeys || {}),
+      dictate: document.getElementById('hotkey-dictate').value,
+      command: document.getElementById('hotkey-command').value,
+    },
+    paste: {
+      ...(base.paste || {}),
+      preview_before_paste: document.getElementById('preview-before-paste').checked,
+    },
+    dictionary: {
+      ...(base.dictionary || {}),
+      codebase_path: document.getElementById('codebase-path').value.trim() || null,
+    },
+  };
+  await invoke('save_config', { config });
+  currentConfig = config;
+}
+
 function setupListeners() {
   // Reveal only the fields the chosen provider uses
   document.getElementById('llm-protocol').addEventListener('change', applyProtocolFields);
 
   // Save settings
   document.getElementById('save-btn').addEventListener('click', async () => {
-    // Merge the form's fields into the loaded config so we never wipe settings
-    // the form doesn't expose (modes, stt.model_path, dictionary, etc.).
-    const base = currentConfig || {};
-    const config = {
-      ...base,
-      llm: {
-        ...(base.llm || {}),
-        protocol: document.getElementById('llm-protocol').value || null,
-        endpoint: document.getElementById('llm-endpoint').value,
-        api_key: document.getElementById('llm-apikey').value || null,
-        region: document.getElementById('llm-region').value || null,
-        cleanup_model: document.getElementById('llm-cleanup-model').value,
-        command_model: document.getElementById('llm-command-model').value,
-      },
-      hotkeys: {
-        ...(base.hotkeys || {}),
-        dictate: document.getElementById('hotkey-dictate').value,
-        command: document.getElementById('hotkey-command').value,
-      },
-      paste: {
-        ...(base.paste || {}),
-        preview_before_paste: document.getElementById('preview-before-paste').checked,
-      },
-    };
     try {
-      await invoke('save_config', { config });
-      currentConfig = config;
+      await saveConfig();
       document.getElementById('save-btn').textContent = 'Saved!';
       setTimeout(() => { document.getElementById('save-btn').textContent = 'Save Settings'; }, 1500);
     } catch (e) {
@@ -362,6 +372,19 @@ function setupListeners() {
   document.getElementById('goto-check').addEventListener('click', async () => {
     document.querySelector('[data-tab=settings]').click();
     document.getElementById('check-btn').click();
+  });
+
+  // Re-index codebase (saves the path first so the backend reads the latest)
+  document.getElementById('reindex-btn').addEventListener('click', async () => {
+    const status = document.getElementById('reindex-status');
+    status.textContent = 'Indexing…';
+    try {
+      await saveConfig();               // persist the path first
+      const result = await invoke('reindex_codebase');
+      status.textContent = result;
+    } catch (e) {
+      status.textContent = String(e);
+    }
   });
 
   // System check
